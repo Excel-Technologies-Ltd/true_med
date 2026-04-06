@@ -116,13 +116,18 @@ app_license = "MIT"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+    # Bust item detail cache + all list caches when an Item changes
+    "Item": {
+        "on_update": "true_med.utils.cache.on_item_change",
+        "on_trash": "true_med.utils.cache.on_item_change",
+    },
+    # Bust item detail cache + all list caches when a price changes
+    "Item Price": {
+        "on_update": "true_med.utils.cache.on_item_price_change",
+        "on_trash": "true_med.utils.cache.on_item_price_change",
+    },
+}
 
 # Scheduled Tasks
 # ---------------
