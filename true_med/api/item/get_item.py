@@ -23,6 +23,7 @@ ITEM_PRICE_FIELDS = [
     "supplier",
     "note",
     "batch_no",
+    
 ]
 
 # Scalar fields returned in the item detail response (child tables are separate)
@@ -123,7 +124,7 @@ def get_item(item_code: str) -> dict:
         data["prices"] = _get_prices_for_codes([resolved])
 
     result = {"data": data}
-    item_cache.set(cache_key, result, ttl=item_cache.ITEM_DETAIL_TTL)
+    # item_cache.set(cache_key, result, ttl=item_cache.ITEM_DETAIL_TTL)
 
     return result
 
@@ -273,6 +274,12 @@ def _serialize_item(doc) -> dict:
             "income_account": row.income_account,
         }
         for row in (doc.item_defaults or [])
+    ]
+
+    # custom_images is a child table — rows are loaded automatically by get_doc
+    data["custom_images"] = [
+        {"media_file": row.get("media_file")}
+        for row in (doc.get("custom_images") or [])
     ]
 
     return data

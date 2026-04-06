@@ -139,6 +139,7 @@ def get_item_list(
     )
 
     _attach_prices(data)
+    _attach_custom_images(data)
 
     result = {"data": data, "pagination": pagination}
     item_cache.set(cache_key, result, ttl=item_cache.ITEM_LIST_TTL)
@@ -216,3 +217,44 @@ def _attach_prices(items: list) -> None:
 
     for item in items:
         item["prices"] = prices_by_item.get(item["item_code"], [])
+
+
+def _attach_custom_images(items: list) -> None:
+    """
+    Attach custom_images child table rows to each item in a single bulk query.
+    custom_images is a Table field on Item — its rows live in a separate DB
+    table and cannot be fetched via frappe.get_list() on the parent doctype.
+    The child DocType name is resolved once from Item's meta so this stays
+    correct even if the child table is renamed.
+    """
+    if not items:
+        return
+
+    child_doctype = _get_custom_images_doctype()
+    if not child_doctype:
+        for item in items:
+            item["custom_images"] = []
+        return
+
+    item_codes = [item["item_code"] for item in items]
+
+    all_images = frappe.get_all(
+        child_doctype,
+        filters={"parent": ["in", item_codes], "parenttype": "Item"},
+        fields=["parent", "name", "media_file", "idx"],
+        order_by="parent asc, idx asc",
+        ignore_permissions=True,
+    )
+
+    images_by_item = {}
+    for row in all_images:
+        images_by_item.setdefault(row["parent"], []).append({"media_file": row["media_file"]})
+
+    for item in items:
+        item["custom_images"] = images_by_item.get(item["item_code"], [])
+
+
+def _get_custom_images_doctype() -> str | None:
+    """Return the child DocType linked to the custom_images field on Item."""
+    field = frappe.get_meta("Item").get_field("custom_images")
+    return field.options if field else None
