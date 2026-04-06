@@ -8,6 +8,14 @@ app_license = "MIT"
 # Includes in <head>
 # ------------------
 
+# Fixtures 
+
+
+fixtures = [
+    {"dt": "Custom Field"},
+    {"dt": "Property Setter"},
+]
+
 # include js, css files in header of desk.html
 # app_include_css = "/assets/true_med/css/true_med.css"
 # app_include_js = "/assets/true_med/js/true_med.js"

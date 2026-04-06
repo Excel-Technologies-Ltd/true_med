@@ -1,0 +1,31 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-05 21:33:58.204117",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "ingredient_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "ingredient_name",
+   "fieldtype": "Link",
+   "label": "Ingredient Name",
+   "options": "Ingredient"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-05 21:33:58.204117",
+ "modified_by": "Administrator",
+ "module": "True Med",
+ "name": "Ingredients",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
