@@ -1,5 +1,4 @@
 import frappe
-from frappe.utils import cint
 
 from true_med.utils import cache as item_cache
 from true_med.utils.pagination import paginate
@@ -30,13 +29,37 @@ def get_my_invoice_list(
     sort_by = sort_by if sort_by in item_cache.ALLOWED_SORT_FIELDS else "creation"
     sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
 
-    filters = {"customer": frappe.session.user}  # Assuming customer is linked to user
+    customer = frappe.db.get_value("Customer", {"email_id": frappe.session.user})
 
-    invoices = frappe.get_all(
+    filters = {"customer": customer}
+
+
+
+    data, pagination = paginate(
         "Sales Invoice",
-        fields=["name", "customer", "grand_total", "status", "creation"],
+        fields=["name", "customer", "customer_name", "grand_total", "currency", "status", "creation"],
         filters=filters,
         order_by=f"{sort_by} {sort_order}",
+        page=page,
+        page_length=page_length,
     )
 
-    return paginate(invoices, page, page_length)    
+    invoice_names = [inv["name"] for inv in data]
+
+    items_by_invoice = {}
+    if invoice_names:
+        rows = frappe.get_all(
+            "Sales Invoice Item",
+            fields=["parent", "item_code", "item_name", "qty", "uom", "rate", "amount", "description"],
+            filters={"parent": ["in", invoice_names]},
+            order_by="idx asc",
+        )
+        for row in rows:
+            items_by_invoice.setdefault(row["parent"], []).append({
+                k: v for k, v in row.items() if k != "parent"
+            })
+
+    for inv in data:
+        inv["items"] = items_by_invoice.get(inv["name"], [])
+
+    return {"invoices": data, "pagination": pagination}    
