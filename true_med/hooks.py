@@ -125,15 +125,27 @@ fixtures = [
 # Hook on document methods and events
 
 doc_events = {
-    # Bust item detail cache + all list caches when an Item changes
+    # ---- Items ----
     "Item": {
         "on_update": "true_med.utils.cache.on_item_change",
         "on_trash": "true_med.utils.cache.on_item_change",
     },
-    # Bust item detail cache + all list caches when a price changes
     "Item Price": {
         "on_update": "true_med.utils.cache.on_item_price_change",
         "on_trash": "true_med.utils.cache.on_item_price_change",
+    },
+    # ---- Blog ----
+    "Blog Post": {
+        "on_update": "true_med.utils.cache.on_blog_post_change",
+        "on_trash": "true_med.utils.cache.on_blog_post_change",
+    },
+    "Blogger": {
+        "on_update": "true_med.utils.cache.on_blogger_change",
+        "on_trash": "true_med.utils.cache.on_blogger_change",
+    },
+    "Blog Category": {
+        "on_update": "true_med.utils.cache.on_blog_category_change",
+        "on_trash": "true_med.utils.cache.on_blog_category_change",
     },
 }
 

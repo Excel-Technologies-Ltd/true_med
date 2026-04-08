@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "naming_series:",
- "creation": "2026-04-06 00:00:00.000000",
+ "creation": "2026-04-06 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -13,8 +13,13 @@
   "status",
   "review_section",
   "item_code",
+  "column_break_tqfex",
   "item_name",
+  "section_break_7oi08",
   "rating",
+  "column_break_tzcf0",
+  "image",
+  "section_break_8fm47",
   "title",
   "review"
  ],
@@ -29,20 +34,20 @@
   {
    "fieldname": "customer",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Customer",
    "options": "Customer",
    "reqd": 1,
-   "in_list_view": 1,
    "search_index": 1
   },
   {
    "fetch_from": "customer.customer_name",
+   "fetch_if_empty": 1,
    "fieldname": "reviewer_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Reviewer Name",
-   "fetch_if_empty": 1,
-   "read_only": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
    "fieldname": "cb1",
@@ -51,19 +56,19 @@
   {
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Sales Invoice",
    "options": "Sales Invoice",
    "reqd": 1,
-   "search_index": 1,
-   "in_list_view": 1
+   "search_index": 1
   },
   {
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nApproved\nRejected",
-   "in_list_view": 1
+   "options": "Pending\nApproved\nRejected"
   },
   {
    "fieldname": "review_section",
@@ -73,45 +78,67 @@
   {
    "fieldname": "item_code",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Item",
    "options": "Item",
    "reqd": 1,
-   "in_list_view": 1,
    "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
+   "fetch_if_empty": 1,
    "fieldname": "item_name",
    "fieldtype": "Data",
    "label": "Item Name",
-   "fetch_if_empty": 1,
    "read_only": 1
   },
   {
    "fieldname": "rating",
    "fieldtype": "Rating",
+   "in_list_view": 1,
    "label": "Rating",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "title",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Title",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "review",
    "fieldtype": "Text Editor",
    "label": "Review"
+  },
+  {
+   "fieldname": "column_break_tqfex",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_7oi08",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_tzcf0",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Image"
+  },
+  {
+   "fieldname": "section_break_8fm47",
+   "fieldtype": "Section Break"
   }
  ],
  "links": [],
- "modified": "2026-04-06 00:00:00.000000",
+ "modified": "2026-04-06 19:58:54.067721",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Item Review",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -128,18 +155,13 @@
   },
   {
    "create": 1,
-   "delete": 0,
-   "email": 0,
-   "export": 0,
-   "print": 0,
    "read": 1,
-   "report": 0,
    "role": "Customer",
-   "share": 0,
    "write": 1
   }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "track_changes": 1
 }

@@ -191,6 +191,7 @@ def _create_customer(customer_name: str, email: str, phone: str = None) -> str:
             "customer_name": customer_name,
             "customer_type": "Individual",
             "customer_group": customer_group,
+            "custom_customer_email": email,
             "territory": territory,
         }
     )
