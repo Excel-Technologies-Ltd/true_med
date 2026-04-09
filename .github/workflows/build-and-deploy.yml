@@ -46,6 +46,10 @@ jobs:
             {
               "url": "https://github.com/Excel-Technologies-Ltd/frappe_auth.git",
               "branch": "master"
+            },
+            {
+              "url": "https://github.com/Excel-Technologies-Ltd/frappe_payments.git",
+              "branch": "master"
             }
           ]'
 
