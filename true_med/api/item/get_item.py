@@ -36,10 +36,15 @@ ITEM_FIELDS = [
     "image",
     "standard_rate",
     "custom_item_details",
-    "custom_who_is_this_product_for",
-    "custom_key_benefits",
+    "custom_sub_title",
+    "custom_product_type",
+    "custom_equivalent_to",
+    "custom_banner_image",
+    "custom_benefit_image",
+    "custom_lifestyle_image",
+    "custom_lifestyle_text",
     "custom_ingredients",
-    "custom_how_to_take_dosage",
+    "custom_short_description",
     "stock_uom",
     "sales_uom",
     "purchase_uom",
@@ -281,10 +286,46 @@ def _serialize_item(doc) -> dict:
         for row in (doc.item_defaults or [])
     ]
 
-    # custom_images is a child table — rows are loaded automatically by get_doc
     data["custom_images"] = [
         {"media_file": row.get("media_file")}
         for row in (doc.get("custom_images") or [])
+    ]
+
+    data["custom_functional_claim"] = [
+        {
+            "title": row.get("title"),
+            "sub_title": row.get("sub_title"),
+            "image": row.get("image"),
+        }
+        for row in (doc.get("custom_functional_claim") or [])
+    ]
+
+    data["custom_external_purchase"] = [
+        {
+            "marketplace_name": row.get("marketplace_name"),
+            "purchase_url": row.get("purchase_url"),
+        }
+        for row in (doc.get("custom_external_purchase") or [])
+    ]
+
+    data["custom_who_is_this_product_for"] = [
+        {"product_for": row.get("product_for")}
+        for row in (doc.get("custom_who_is_this_product_for") or [])
+    ]
+
+    data["custom_key_benefits"] = [
+        {
+            "benefit_title": row.get("benefit_title"),
+            "benefit_icon": row.get("benefit_icon"),
+            "description": row.get("description"),
+            "image": row.get("image"),
+        }
+        for row in (doc.get("custom_key_benefits") or [])
+    ]
+
+    data["custom_how_to_take_dosage"] = [
+        {"dosage_name": row.get("dosage_name")}
+        for row in (doc.get("custom_how_to_take_dosage") or [])
     ]
 
     return data
