@@ -37,6 +37,8 @@ ITEM_FIELDS = [
     "standard_rate",
     "custom_item_details",
     "custom_sub_title",
+    "custom_lifestyle_title",
+    "custom_functional_claim_title",
     "custom_product_type",
     "custom_equivalent_to",
     "custom_banner_image",
@@ -80,8 +82,6 @@ ITEM_FIELDS = [
     "published_in_website",
     "grant_commission",
     "total_projected_qty",
-    "modified",
-    "creation",
 ]
 
 
