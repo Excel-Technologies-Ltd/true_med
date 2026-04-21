@@ -94,6 +94,7 @@ def get_item_group_list(
     )
 
     _attach_children_count(data)
+    _attach_item_count(data)
 
     return {"data": data, "pagination": pagination}
 
@@ -156,3 +157,35 @@ def _attach_children_count(groups: list) -> None:
     counts = {r["parent_item_group"]: r["cnt"] for r in rows}
     for g in groups:
         g["children_count"] = counts.get(g["name"], 0)
+
+def _attach_item_count(groups: list) -> None:
+    """
+    Attach the total number of items linked directly to each item group in a single query.
+    """
+    if not groups:
+        return
+
+    # We need the count for all groups returned in the current page
+    group_names = [g["name"] for g in groups]
+    
+    if not group_names:
+        return
+
+    # Single grouped query against tabItem
+    rows = frappe.db.sql(
+        """
+        SELECT item_group, COUNT(*) AS cnt
+        FROM   `tabItem`
+        WHERE  item_group IN ({placeholders})
+        GROUP  BY item_group
+        """.format(placeholders=", ".join(["%s"] * len(group_names))),
+        group_names,
+        as_dict=True,
+    )
+
+    # Map the results to a dictionary for O(1) lookups
+    counts = {r["item_group"]: r["cnt"] for r in rows}
+    
+    # Assign the count back to the original paginated data
+    for g in groups:
+        g["item_count"] = counts.get(g["name"], 0)        
