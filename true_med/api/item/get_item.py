@@ -46,6 +46,8 @@ ITEM_FIELDS = [
     "custom_lifestyle_image",
     "custom_lifestyle_text",
     "custom_ingredients",
+    "custom_got_questions_image",
+    "custom_got_questions",
     "custom_short_description",
     "stock_uom",
     "sales_uom",
