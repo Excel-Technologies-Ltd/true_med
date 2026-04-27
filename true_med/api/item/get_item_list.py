@@ -15,8 +15,6 @@ ITEM_LIST_FIELDS = [
     "custom_sub_title",
     "custom_equivalent_to",
     "image",
-    "custom_product_type": "Capsule",
-    "custom_key_benefits",
     "custom_ingredients",
     "standard_rate",
     "stock_uom",
@@ -104,6 +102,9 @@ def get_item_list(
     """
     sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "modified"
     sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
+    fields = _get_existing_item_fields()
+    if sort_by not in fields:
+        sort_by = "modified"
 
     cache_key = item_cache.item_list_key(
         page=page,
@@ -135,7 +136,7 @@ def get_item_list(
 
     data, pagination = paginate(
         doctype="Item",
-        fields=ITEM_LIST_FIELDS,
+        fields=fields,
         filters=filters,
         or_filters=or_filters,
         order_by=order_by,
@@ -146,6 +147,7 @@ def get_item_list(
 
     _attach_prices(data)
     _attach_custom_images(data)
+    _attach_custom_key_benefits(data)
 
     result = {"data": data, "pagination": pagination}
     item_cache.set(cache_key, result, ttl=item_cache.ITEM_LIST_TTL)
@@ -185,6 +187,19 @@ def _build_filters(
         filters["has_variants"] = cint(has_variants)
 
     return filters
+
+
+def _get_existing_item_fields() -> list:
+    """
+    Return only real DB-backed Item fields to avoid SQL errors when custom
+    fields differ between environments.
+    """
+    meta = frappe.get_meta("Item")
+    existing = []
+    for field in ITEM_LIST_FIELDS:
+        if field in ("name", "modified", "creation") or meta.get_field(field):
+            existing.append(field)
+    return existing
 
 
 def _build_search_filters(search: str | None) -> list:
@@ -260,7 +275,59 @@ def _attach_custom_images(items: list) -> None:
         item["custom_images"] = images_by_item.get(item["item_code"], [])
 
 
+def _attach_custom_key_benefits(items: list) -> None:
+    """
+    Attach custom_key_benefits child table rows to each item in a single query.
+    """
+    if not items:
+        return
+
+    child_doctype = _get_custom_key_benefits_doctype()
+    if not child_doctype:
+        for item in items:
+            item["custom_key_benefits"] = []
+        return
+
+    item_codes = [item["item_code"] for item in items]
+    all_rows = frappe.get_all(
+        child_doctype,
+        filters={"parent": ["in", item_codes], "parenttype": "Item"},
+        fields=[
+            "parent",
+            "benefit_title",
+            "benefit_icon",
+            "description",
+            "image",
+            "idx",
+        ],
+        order_by="parent asc, idx asc",
+        ignore_permissions=True,
+    )
+
+    rows_by_item = {}
+    for row in all_rows:
+        rows_by_item.setdefault(row["parent"], []).append(
+            {
+                "benefit_title": row.get("benefit_title"),
+                "benefit_icon": row.get("benefit_icon"),
+                "description": row.get("description"),
+                "image": row.get("image"),
+            }
+        )
+
+    for item in items:
+        item["custom_key_benefits"] = rows_by_item.get(item["item_code"], [])
+
+
 def _get_custom_images_doctype() -> str | None:
     """Return the child DocType linked to the custom_images field on Item."""
     field = frappe.get_meta("Item").get_field("custom_images")
     return field.options if field else None
+
+
+def _get_custom_key_benefits_doctype() -> str | None:
+    """Return child DocType linked to custom_key_benefits on Item."""
+    field = frappe.get_meta("Item").get_field("custom_key_benefits")
+    if not field or field.fieldtype != "Table":
+        return None
+    return field.options
