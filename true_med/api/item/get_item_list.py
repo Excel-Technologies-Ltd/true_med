@@ -148,6 +148,7 @@ def get_item_list(
     _attach_prices(data)
     _attach_custom_images(data)
     _attach_custom_key_benefits(data)
+    _attach_custom_external_purchase(data)
 
     result = {"data": data, "pagination": pagination}
     item_cache.set(cache_key, result, ttl=item_cache.ITEM_LIST_TTL)
@@ -197,8 +198,15 @@ def _get_existing_item_fields() -> list:
     meta = frappe.get_meta("Item")
     existing = []
     for field in ITEM_LIST_FIELDS:
-        if field in ("name", "modified", "creation") or meta.get_field(field):
+        if field in ("name", "modified", "creation"):
             existing.append(field)
+            continue
+        field_meta = meta.get_field(field)
+        if not field_meta:
+            continue
+        if field_meta.fieldtype in ("Table", "Table MultiSelect"):
+            continue
+        existing.append(field)
     return existing
 
 
@@ -319,6 +327,44 @@ def _attach_custom_key_benefits(items: list) -> None:
         item["custom_key_benefits"] = rows_by_item.get(item["item_code"], [])
 
 
+def _attach_custom_external_purchase(items: list) -> None:
+    """
+    Attach custom_external_purchase child table rows to each item in bulk.
+    """
+    if not items:
+        return
+
+    child_doctype = _get_custom_external_purchase_doctype()
+    if not child_doctype:
+        for item in items:
+            item["custom_external_purchase"] = []
+        return
+
+    item_codes = [item["item_code"] for item in items]
+    all_rows = frappe.get_all(
+        child_doctype,
+        filters={"parent": ["in", item_codes], "parenttype": "Item"},
+        fields=["parent", "marketplace_name", "purchase_url", "idx"],
+        order_by="parent asc, idx asc",
+        ignore_permissions=True,
+    )
+
+    rows_by_item = {}
+    for row in all_rows:
+        rows_by_item.setdefault(row["parent"], []).append(
+            {
+                "marketplace_name": row.get("marketplace_name"),
+                "purchase_url": row.get("purchase_url"),
+            }
+        )
+
+    for item in items:
+        item["custom_external_purchase"] = rows_by_item.get(
+            item["item_code"],
+            [],
+        )
+
+
 def _get_custom_images_doctype() -> str | None:
     """Return the child DocType linked to the custom_images field on Item."""
     field = frappe.get_meta("Item").get_field("custom_images")
@@ -328,6 +374,14 @@ def _get_custom_images_doctype() -> str | None:
 def _get_custom_key_benefits_doctype() -> str | None:
     """Return child DocType linked to custom_key_benefits on Item."""
     field = frappe.get_meta("Item").get_field("custom_key_benefits")
+    if not field or field.fieldtype != "Table":
+        return None
+    return field.options
+
+
+def _get_custom_external_purchase_doctype() -> str | None:
+    """Return child DocType linked to custom_external_purchase on Item."""
+    field = frappe.get_meta("Item").get_field("custom_external_purchase")
     if not field or field.fieldtype != "Table":
         return None
     return field.options
