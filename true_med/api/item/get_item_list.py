@@ -24,6 +24,8 @@ ITEM_LIST_FIELDS = [
     "custom_ingredients",
     "standard_rate",
     "stock_uom",
+    "custom_is_new",
+    "custom_is_best_selling",
     "is_stock_item",
     "has_variants",
     "variant_of",
