@@ -1,4 +1,5 @@
 import frappe
+from frappe.model.db_query import DatabaseQuery
 from frappe.utils import cint
 
 # Hard cap to prevent abusive requests that dump the entire catalogue.
@@ -72,7 +73,12 @@ def paginate(
     page_length = min(max(1, cint(page_length)), MAX_PAGE_LENGTH)
     limit_start = (page - 1) * page_length
 
-    total_count = frappe.db.count(doctype, filters or {})
+    total_count = _count_with_optional_or_filters(
+        doctype,
+        filters,
+        or_filters,
+        ignore_permissions,
+    )
 
     data = frappe.get_list(
         doctype,
@@ -88,3 +94,29 @@ def paginate(
     pagination = get_pagination_meta(total_count, page, page_length)
 
     return data, pagination
+
+
+def _count_with_optional_or_filters(
+    doctype: str,
+    filters: dict | list,
+    or_filters: dict | list,
+    ignore_permissions: bool,
+) -> int:
+    """
+    frappe.db.count ignores or_filters; use DatabaseQuery when OR logic applies.
+    """
+    if or_filters:
+        cnt_rows = DatabaseQuery(doctype).execute(
+            fields=[f"count(`tab{doctype}`.`name`) as total_count"],
+            filters=filters or {},
+            or_filters=or_filters or [],
+            order_by=None,
+            limit_start=0,
+            limit_page_length=0,
+            ignore_permissions=ignore_permissions,
+        )
+        if not cnt_rows:
+            return 0
+        return int((cnt_rows[0] or {}).get("total_count") or 0)
+
+    return frappe.db.count(doctype, filters or {})

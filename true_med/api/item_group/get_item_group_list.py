@@ -2,6 +2,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
+from true_med.utils.list_query_filters import (
+    BASE_LIST_API_RESERVED_KEYS,
+    get_query_field_filters,
+    merge_doctype_field_filters,
+    normalize_field_filters_json,
+)
 from true_med.utils.pagination import paginate
 
 ITEM_GROUP_FIELDS = [
@@ -26,6 +32,10 @@ ALLOWED_SORT_FIELDS = {
     "creation",
 }
 
+_ITEM_GROUP_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset(
+    {"parent_item_group", "is_group", "show_in_website"}
+)
+
 
 @frappe.whitelist(allow_guest=True)
 def get_item_group_list(
@@ -35,6 +45,7 @@ def get_item_group_list(
     is_group: int = None,
     show_in_website: int = None,
     search: str = None,
+    field_filters: str = None,
     sort_by: str = "lft",
     sort_order: str = "asc",
 ) -> dict:
@@ -51,6 +62,9 @@ def get_item_group_list(
         is_group           (0|1)      Filter leaf (0) or branch (1) nodes
         show_in_website    (0|1)      Filter groups shown on the website
         search             (str)      Partial match on item_group_name
+        field_filters      (str)      JSON AND filters; overrides same key from query string
+        Other query keys in ITEM_GROUP_FIELDS apply as exact AND filters
+        (e.g. ?route=shop/vitamins).
         sort_by            (str)      item_group_name | weightage | lft | modified | creation
         sort_order         (asc|desc) Default: asc
 
@@ -78,6 +92,23 @@ def get_item_group_list(
         parent_item_group=parent_item_group,
         is_group=is_group,
         show_in_website=show_in_website,
+    )
+    query_ff = get_query_field_filters(
+        allowed_fields=frozenset(ITEM_GROUP_FIELDS),
+        reserved_keys=_ITEM_GROUP_RESERVED,
+    )
+    ff_json = normalize_field_filters_json(field_filters)
+    merge_doctype_field_filters(
+        filters,
+        query_ff,
+        doctype="Item Group",
+        allowed_fields=frozenset(ITEM_GROUP_FIELDS),
+    )
+    merge_doctype_field_filters(
+        filters,
+        ff_json,
+        doctype="Item Group",
+        allowed_fields=frozenset(ITEM_GROUP_FIELDS),
     )
     or_filters = _build_search_filters(search)
     order_by = f"`tabItem Group`.`{sort_by}` {sort_order}"

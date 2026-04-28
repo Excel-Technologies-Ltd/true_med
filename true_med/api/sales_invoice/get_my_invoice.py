@@ -1,13 +1,38 @@
 import frappe
 
 from true_med.utils import cache as item_cache
+from true_med.utils.list_query_filters import (
+    BASE_LIST_API_RESERVED_KEYS,
+    get_query_field_filters,
+    merge_doctype_field_filters,
+    normalize_field_filters_json,
+)
 from true_med.utils.pagination import paginate
+
+_SI_LIST_FIELDS = frozenset(
+    {
+        "name",
+        "customer",
+        "customer_name",
+        "grand_total",
+        "currency",
+        "status",
+        "creation",
+        "posting_date",
+        "due_date",
+        "title",
+        "company",
+        "is_return",
+    }
+)
+_SI_INVOICE_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset({"customer"})
 
 
 @frappe.whitelist()
 def get_my_invoice_list(
     page: int = 1,
     page_length: int = 20,
+    field_filters: str = None,
     sort_by: str = "creation",
     sort_order: str = "desc",
 ) -> dict:
@@ -18,10 +43,12 @@ def get_my_invoice_list(
     are returned.
 
     Query Parameters:
-        page         (int)           Page number, 1-based. Default: 1
-        page_length  (int)           Records per page. Default: 20, max: 100
-        sort_by      (str)           Field to sort by. Default: creation
-        sort_order   (asc|desc)      Sort direction. Default: desc  
+        page          (int)           Page number, 1-based. Default: 1
+        page_length   (int)           Records per page. Default: 20, max: 100
+        field_filters (str)           JSON AND filters (cannot set customer)
+        Other allowed Sales Invoice fields as ?status=Paid&grand_total=100
+        sort_by       (str)           Field to sort by. Default: creation
+        sort_order    (asc|desc)      Sort direction. Default: desc
     """
     if not frappe.session.user:
         return {"invoices": [], "total": 0}
@@ -32,8 +59,26 @@ def get_my_invoice_list(
     customer = frappe.db.get_value("Customer", {"email_id": frappe.session.user})
 
     filters = {"customer": customer}
-
-
+    query_ff = get_query_field_filters(
+        allowed_fields=_SI_LIST_FIELDS,
+        reserved_keys=_SI_INVOICE_RESERVED,
+        forbidden_fields=frozenset({"customer"}),
+    )
+    ff_json = normalize_field_filters_json(field_filters)
+    merge_doctype_field_filters(
+        filters,
+        query_ff,
+        doctype="Sales Invoice",
+        allowed_fields=_SI_LIST_FIELDS,
+        forbidden_fields=frozenset({"customer"}),
+    )
+    merge_doctype_field_filters(
+        filters,
+        ff_json,
+        doctype="Sales Invoice",
+        allowed_fields=_SI_LIST_FIELDS,
+        forbidden_fields=frozenset({"customer"}),
+    )
 
     data, pagination = paginate(
         "Sales Invoice",

@@ -9,6 +9,7 @@ Key namespaces
 --------------
   true_med|item:{item_code}           — single item detail
   true_med|item_list:{params_hash}    — paginated item list result
+  true_med|item_selling_price_range   — min/max selling prices (facet)
   true_med|blog:{name}                — single blog post detail
   true_med|blog_list:{params_hash}    — paginated blog list result
 """
@@ -36,6 +37,7 @@ BLOG_LIST_TTL = 180      # 3 minutes
 # ---------------------------------------------------------------------------
 _ITEM_DETAIL_NS = "true_med|item:"
 _ITEM_LIST_NS = "true_med|item_list:"
+ITEM_SELLING_PRICE_RANGE_CACHE_KEY = "true_med|item_selling_price_range"
 
 
 def item_detail_key(item_code: str) -> str:
@@ -90,6 +92,7 @@ def on_item_change(doc, method=None):
     """
     frappe.cache().delete_value(item_detail_key(doc.name))
     _bust_item_list_caches()
+    _bust_item_selling_price_range_cache()
 
 
 def on_item_price_change(doc, method=None):
@@ -100,11 +103,16 @@ def on_item_price_change(doc, method=None):
     """
     frappe.cache().delete_value(item_detail_key(doc.item_code))
     _bust_item_list_caches()
+    _bust_item_selling_price_range_cache()
 
 
 def _bust_item_list_caches():
     """Delete all item list cache entries."""
     frappe.cache().delete_keys(_ITEM_LIST_NS)
+
+
+def _bust_item_selling_price_range_cache():
+    frappe.cache().delete_value(ITEM_SELLING_PRICE_RANGE_CACHE_KEY)
 
 
 # ---------------------------------------------------------------------------

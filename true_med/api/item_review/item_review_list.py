@@ -2,6 +2,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
+from true_med.utils.list_query_filters import (
+    BASE_LIST_API_RESERVED_KEYS,
+    get_query_field_filters,
+    merge_doctype_field_filters,
+    normalize_field_filters_json,
+)
 from true_med.utils.pagination import paginate
 
 REVIEW_LIST_FIELDS = [
@@ -27,12 +33,16 @@ ALLOWED_SORT_FIELDS = {
     "creation",
 }
 
+_REVIEW_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset({"item_code"})
+_REVIEW_FORBIDDEN = frozenset({"item_code", "status", "customer", "sales_invoice"})
+
 
 @frappe.whitelist(allow_guest=True)
 def get_item_review_list(
     item_code: str = None,
     page: int = 1,
     page_length: int = 20,
+    field_filters: str = None,
     sort_by: str = "creation",
     sort_order: str = "desc",
 ) -> dict:
@@ -43,10 +53,12 @@ def get_item_review_list(
     exposed to guests; the response shows reviewer_name only.
 
     Query Parameters:
-        item_code    (str, required) Item to fetch reviews for
-        page         (int)           Page number, 1-based. Default: 1
-        page_length  (int)           Records per page. Default: 20, max: 100
-        sort_by      (str)           rating | title | modified | creation
+        item_code     (str, required) Item to fetch reviews for
+        page          (int)           Page number, 1-based. Default: 1
+        page_length   (int)           Records per page. Default: 20, max: 100
+        field_filters (str)           JSON AND filters on review fields
+        Other keys in REVIEW_LIST_FIELDS (except item_code/status/...) as ?key=
+        sort_by       (str)           rating | title | modified | creation
         sort_order   (asc|desc)      Default: desc
 
     Summary statistics (avg_rating, total_reviews, rating breakdown) are
@@ -68,6 +80,26 @@ def get_item_review_list(
         "item_code": item_code,
         "status": "Approved",
     }
+    query_ff = get_query_field_filters(
+        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
+        reserved_keys=_REVIEW_RESERVED,
+        forbidden_fields=_REVIEW_FORBIDDEN,
+    )
+    ff_json = normalize_field_filters_json(field_filters)
+    merge_doctype_field_filters(
+        filters,
+        query_ff,
+        doctype="Item Review",
+        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
+        forbidden_fields=_REVIEW_FORBIDDEN,
+    )
+    merge_doctype_field_filters(
+        filters,
+        ff_json,
+        doctype="Item Review",
+        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
+        forbidden_fields=_REVIEW_FORBIDDEN,
+    )
 
     data, pagination = paginate(
         doctype="Item Review",

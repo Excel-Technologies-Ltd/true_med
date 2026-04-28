@@ -1,8 +1,14 @@
 import frappe
 from frappe.utils import cint
 
-from true_med.utils.pagination import paginate
 from true_med.utils import cache as blog_cache
+from true_med.utils.list_query_filters import (
+    BASE_LIST_API_RESERVED_KEYS,
+    get_query_field_filters,
+    merge_doctype_field_filters,
+    normalize_field_filters_json,
+)
+from true_med.utils.pagination import paginate
 
 # ---------------------------------------------------------------------------
 # Field definitions
@@ -38,6 +44,10 @@ ALLOWED_SORT_FIELDS = {
     "blogger",
 }
 
+_BLOG_POST_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset(
+    {"blog_category", "blogger", "featured", "published"}
+)
+
 
 @frappe.whitelist(allow_guest=True)
 def get_blog_post_list(
@@ -48,6 +58,7 @@ def get_blog_post_list(
     featured: int = None,
     published: int = 1,
     search: str = None,
+    field_filters: str = None,
     sort_by: str = "published_on",
     sort_order: str = "desc",
 ) -> dict:
@@ -65,6 +76,8 @@ def get_blog_post_list(
         featured      (0|1)      Filter featured posts only
         published     (0|1)      Filter published posts (default 1)
         search        (str)      Partial match on title or blog_intro
+        field_filters (str)      JSON AND filters; overrides same key from query string
+        Other query keys in BLOG_LIST_FIELDS apply as exact AND filters.
         sort_by       (str)      Field to sort by. Allowed: title, published_on,
                                  modified, creation, read_time, blog_category, blogger
         sort_order    (asc|desc) Sort direction. Default: desc
@@ -75,6 +88,12 @@ def get_blog_post_list(
     sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "published_on"
     sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
 
+    ff_json = normalize_field_filters_json(field_filters)
+    query_ff = get_query_field_filters(
+        allowed_fields=frozenset(BLOG_LIST_FIELDS),
+        reserved_keys=_BLOG_POST_RESERVED,
+    )
+
     cache_key = blog_cache.blog_list_key(
         page=page,
         page_length=page_length,
@@ -83,6 +102,8 @@ def get_blog_post_list(
         featured=featured,
         published=published,
         search=search,
+        field_filters=ff_json,
+        query_field_filters=query_ff,
         sort_by=sort_by,
         sort_order=sort_order,
     )
@@ -96,6 +117,18 @@ def get_blog_post_list(
         blogger=blogger,
         featured=featured,
         published=published,
+    )
+    merge_doctype_field_filters(
+        filters,
+        query_ff,
+        doctype="Blog Post",
+        allowed_fields=frozenset(BLOG_LIST_FIELDS),
+    )
+    merge_doctype_field_filters(
+        filters,
+        ff_json,
+        doctype="Blog Post",
+        allowed_fields=frozenset(BLOG_LIST_FIELDS),
     )
     or_filters = _build_search_filters(search)
     order_by = f"`tabBlog Post`.`{sort_by}` {sort_order}"

@@ -1,8 +1,14 @@
 import frappe
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 from true_med.utils import cache as item_cache
-from true_med.utils.pagination import paginate
+from true_med.utils.list_query_filters import (
+    BASE_LIST_API_RESERVED_KEYS,
+    get_query_field_filters,
+    merge_doctype_field_filters,
+    normalize_field_filters_json,
+)
+from true_med.utils.pagination import MAX_PAGE_LENGTH, get_pagination_meta, paginate
 
 ITEM_LIST_FIELDS = [
     "name",
@@ -60,6 +66,28 @@ ALLOWED_SORT_FIELDS = {
     "creation",
 }
 
+_FIELD_FILTERS_FORBIDDEN = frozenset({"variant_of"})
+
+_ITEM_LIST_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset(
+    {"item_group", "brand", "is_stock_item", "has_variants", "disabled"}
+)
+
+_FIELD_TYPES_SEARCHABLE = frozenset(
+    {
+        "Data",
+        "Link",
+        "Dynamic Link",
+        "Text",
+        "Small Text",
+        "Long Text",
+        "Text Editor",
+        "HTML Editor",
+        "Read Only",
+        "Phone",
+        "Barcode",
+    }
+)
+
 
 @frappe.whitelist(allow_guest=True)
 def get_item_list(
@@ -68,6 +96,10 @@ def get_item_list(
     item_group: str = None,
     brand: str = None,
     search: str = None,
+    search_fields: str = None,
+    field_filters: str = None,
+    price_min: float = None,
+    price_max: float = None,
     is_stock_item: int = None,
     has_variants: int = None,
     disabled: int = 0,
@@ -85,17 +117,28 @@ def get_item_list(
     Item Prices change.
 
     Query Parameters:
-        page          (int)      Page number, 1-based. Default: 1
-        page_length   (int)      Records per page. Default: 20, max: 100
-        item_group    (str)      Filter by exact item group name
-        brand         (str)      Filter by exact brand name
-        search        (str)      Partial match on item_code or item_name
-        is_stock_item (0|1)      Filter stocked items only
-        has_variants  (0|1)      Narrow to template (1) or standalone (0) items
-        disabled      (0|1)      Include disabled items (default 0 = active only)
-        sort_by       (str)      Field to sort by. Allowed: item_code, item_name,
-                                 item_group, brand, standard_rate, modified, creation
-        sort_order    (asc|desc) Sort direction. Default: desc
+        page           (int)       Page number, 1-based. Default: 1
+        page_length    (int)       Records per page. Default: 20, max: 100
+        item_group     (str)       Filter by exact item group name
+        brand          (str)       Filter by exact brand name
+        search         (str)       Partial match (LIKE) on item fields
+        search_fields  (str)       Comma-separated subset of ITEM_LIST_FIELDS
+                                  to apply `search` to; default: all
+                                  text-like list fields present in DB
+        field_filters  (str|dict) JSON object of {field: value} AND filters.
+                                  Keys must be ITEM_LIST_FIELDS (non-table).
+                                  Overrides the same key from plain query params.
+        Any other query key that matches ITEM_LIST_FIELDS (e.g. custom_product_type)
+        is applied as an exact AND filter.
+        price_min      (float)     At least one selling Item Price with
+                                  price_list_rate >= price_min
+        price_max      (float)     At least one selling price <= price_max
+        is_stock_item  (0|1)      Filter stocked items only
+        has_variants   (0|1)       Narrow to template (1) or standalone (0)
+        disabled       (0|1)      Include disabled items (default 0 = active)
+        sort_by        (str)       item_code, item_name, item_group, brand,
+                                   standard_rate, modified, creation
+        sort_order     (asc|desc) Sort direction. Default: desc
 
     Endpoint:
         GET /api/method/true_med.api.item.get_item_list.get_item_list
@@ -106,12 +149,24 @@ def get_item_list(
     if sort_by not in fields:
         sort_by = "modified"
 
+    ff_parsed = normalize_field_filters_json(field_filters)
+    query_field_filters = get_query_field_filters(
+        allowed_fields=frozenset(ITEM_LIST_FIELDS),
+        reserved_keys=_ITEM_LIST_RESERVED,
+        forbidden_fields=_FIELD_FILTERS_FORBIDDEN,
+    )
+
     cache_key = item_cache.item_list_key(
         page=page,
         page_length=page_length,
         item_group=item_group,
         brand=brand,
         search=search,
+        search_fields=search_fields,
+        field_filters=ff_parsed,
+        query_field_filters=query_field_filters,
+        price_min=price_min,
+        price_max=price_max,
         is_stock_item=is_stock_item,
         has_variants=has_variants,
         disabled=disabled,
@@ -130,8 +185,42 @@ def get_item_list(
         has_variants=has_variants,
         disabled=disabled,
     )
+    merge_doctype_field_filters(
+        filters,
+        query_field_filters,
+        doctype="Item",
+        allowed_fields=frozenset(ITEM_LIST_FIELDS),
+        forbidden_fields=_FIELD_FILTERS_FORBIDDEN,
+    )
+    merge_doctype_field_filters(
+        filters,
+        ff_parsed,
+        doctype="Item",
+        allowed_fields=frozenset(ITEM_LIST_FIELDS),
+        forbidden_fields=_FIELD_FILTERS_FORBIDDEN,
+    )
 
-    or_filters = _build_search_filters(search)
+    price_names = _item_names_matching_selling_price_range(
+        price_min=price_min,
+        price_max=price_max,
+        disabled=cint(disabled) if disabled is not None else 0,
+    )
+    if price_names is not None:
+        if not price_names:
+            pl = min(max(1, cint(page_length)), MAX_PAGE_LENGTH)
+            result = {
+                "data": [],
+                "pagination": get_pagination_meta(0, max(1, cint(page)), pl),
+            }
+            item_cache.set(cache_key, result, ttl=item_cache.ITEM_LIST_TTL)
+            return result
+        filters["name"] = ["in", price_names]
+
+    or_filters = _build_search_filters(
+        search=search,
+        search_fields=search_fields,
+        list_fields=fields,
+    )
     order_by = f"`tabItem`.`{sort_by}` {sort_order}"
 
     data, pagination = paginate(
@@ -159,6 +248,7 @@ def get_item_list(
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_filters(
     item_group=None,
@@ -210,16 +300,67 @@ def _get_existing_item_fields() -> list:
     return existing
 
 
-def _build_search_filters(search: str | None) -> list:
-    """Return OR filters for a free-text search across code and name."""
-    if not search:
+def _build_search_filters(
+    search: str | None,
+    search_fields: str | None,
+    list_fields: list,
+) -> list:
+    if not search or not str(search).strip():
         return []
 
-    keyword = f"%{search}%"
-    return [
-        ["item_code", "like", keyword],
-        ["item_name", "like", keyword],
+    keyword = f"%{str(search).strip()}%"
+    meta = frappe.get_meta("Item")
+
+    if search_fields and str(search_fields).strip():
+        names = [s.strip() for s in str(search_fields).split(",") if s.strip()]
+        target_fields = []
+        for fname in names:
+            if fname not in ITEM_LIST_FIELDS or fname not in list_fields:
+                continue
+            df = meta.get_field(fname)
+            if not df or df.fieldtype not in _FIELD_TYPES_SEARCHABLE:
+                continue
+            target_fields.append(fname)
+    else:
+        target_fields = []
+        for fname in list_fields:
+            if fname in ("name", "modified", "creation"):
+                continue
+            df = meta.get_field(fname)
+            if df and df.fieldtype in _FIELD_TYPES_SEARCHABLE:
+                target_fields.append(fname)
+
+    return [[fn, "like", keyword] for fn in target_fields]
+
+
+def _item_names_matching_selling_price_range(
+    price_min,
+    price_max,
+    disabled: int,
+) -> list[str] | None:
+    if price_min is None and price_max is None:
+        return None
+
+    conditions = [
+        "ip.selling = 1",
+        "(IFNULL(i.variant_of, '') = '')",
+        "IFNULL(i.disabled, 0) = %s",
     ]
+    params = [disabled]
+    if price_min is not None:
+        conditions.append("ip.price_list_rate >= %s")
+        params.append(flt(price_min))
+    if price_max is not None:
+        conditions.append("ip.price_list_rate <= %s")
+        params.append(flt(price_max))
+
+    sql = f"""
+        SELECT DISTINCT i.name
+        FROM `tabItem Price` ip
+        INNER JOIN `tabItem` i ON i.name = ip.item_code
+        WHERE {" AND ".join(conditions)}
+    """
+    return frappe.db.sql(sql, tuple(params), pluck=True)
 
 
 def _attach_prices(items: list) -> None:
