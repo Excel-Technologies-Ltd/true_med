@@ -19,7 +19,7 @@
   },
   {
    "fieldname": "sub_title",
-   "fieldtype": "Data",
+   "fieldtype": "Long Text",
    "label": "Sub Title"
   },
   {
@@ -31,7 +31,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-18 20:22:25.080068",
+ "modified": "2026-04-29 01:09:43.145372",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Functional Claim",

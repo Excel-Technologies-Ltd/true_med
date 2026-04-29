@@ -20,12 +20,12 @@
   },
   {
    "fieldname": "benefit_icon",
-   "fieldtype": "Data",
+   "fieldtype": "Attach Image",
    "label": "Benefit Icon "
   },
   {
    "fieldname": "description",
-   "fieldtype": "Data",
+   "fieldtype": "Long Text",
    "label": "Description"
   },
   {
@@ -37,7 +37,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-18 20:33:24.255859",
+ "modified": "2026-04-29 01:12:06.774518",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Key Benefits",
