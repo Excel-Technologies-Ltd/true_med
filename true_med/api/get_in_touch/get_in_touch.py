@@ -64,3 +64,5 @@ def submit_get_in_touch(
         "message": _("Thank you for getting in touch. We will respond shortly."),
         "name": doc.name,
     }
+
+
