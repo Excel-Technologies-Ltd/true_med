@@ -14,6 +14,7 @@ ITEM_GROUP_FIELDS = [
     "name",
     "item_group_name",
     "parent_item_group",
+    "custom_brand",
     "is_group",
     "image",
     "description",

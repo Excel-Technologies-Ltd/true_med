@@ -74,6 +74,7 @@ def _get_item_group_data(item_group: str) -> dict:
         "name",
         "item_group_name",
         "parent_item_group",
+        "custom_brand",
         "is_group",
         "image",
         "description",
