@@ -95,7 +95,7 @@ def get_my_invoice_list(
     if invoice_names:
         rows = frappe.get_all(
             "Sales Invoice Item",
-            fields=["parent", "item_code", "item_name", "qty", "uom", "rate", "amount", "description"],
+            fields=["parent", "item_code", "item_name", "qty", "uom", "rate", "amount", "description", "image"],
             filters={"parent": ["in", invoice_names]},
             order_by="idx asc",
         )
