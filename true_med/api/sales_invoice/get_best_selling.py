@@ -140,6 +140,7 @@ def get_best_selling_list(
             "Item",
             fields=[
                 "name",
+                "item_code",
                 "item_name",
                 "item_group",
                 "image",
