@@ -15,6 +15,7 @@ _SI_LIST_FIELDS = frozenset(
         "customer",
         "customer_name",
         "grand_total",
+        "custom_delivery_status",
         "currency",
         "status",
         "creation",
@@ -82,7 +83,7 @@ def get_my_invoice_list(
 
     data, pagination = paginate(
         "Sales Invoice",
-        fields=["name", "customer", "customer_name", "grand_total", "currency", "status", "creation"],
+        fields=["name", "customer", "customer_name", "grand_total", "currency", "custom_delivery_status", "status", "creation"],
         filters=filters,
         order_by=f"{sort_by} {sort_order}",
         page=page,
