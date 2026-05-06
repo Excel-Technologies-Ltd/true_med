@@ -8,7 +8,7 @@ from true_med.utils.list_query_filters import (
     merge_doctype_field_filters,
     normalize_field_filters_json,
 )
-from true_med.utils.pagination import paginate
+from true_med.utils.pagination import get_list_request_value, paginate
 
 REVIEW_LIST_FIELDS = [
     "name",
@@ -47,13 +47,14 @@ def get_item_review_list(
     sort_order: str = "desc",
 ) -> dict:
     """
-    Public API — paginated approved reviews for a given item.
+    Public API — paginated approved reviews.
 
     Only Approved reviews are returned. Customer identifiers are never
     exposed to guests; the response shows reviewer_name only.
 
     Query Parameters:
-        item_code     (str, required) Item to fetch reviews for
+        item_code     (str, optional) When set, limit to this item (must exist).
+                                      When omitted, all approved reviews.
         page          (int)           Page number, 1-based. Default: 1
         page_length   (int)           Records per page. Default: 20, max: 100
         field_filters (str)           JSON AND filters on review fields
@@ -62,24 +63,30 @@ def get_item_review_list(
         sort_order   (asc|desc)      Default: desc
 
     Summary statistics (avg_rating, total_reviews, rating breakdown) are
-    included in the response under the `summary` key.
+    included in the response under the `summary` key (scoped by item_code
+    when provided, otherwise global).
 
     Endpoint:
-        GET /api/method/true_med.api.item_review.item_review_list.get_item_review_list?item_code=ITEM-001
+        GET /api/method/true_med.api.item_review.item_review_list.get_item_review_list
+        GET ...get_item_review_list?item_code=ITEM-001
     """
-    if not item_code:
-        frappe.throw(_("item_code is required"), frappe.MandatoryError)
+    resolved_item = get_list_request_value('item_code') or item_code
+    resolved_item = str(resolved_item).strip() if resolved_item else ''
 
-    if not frappe.db.exists("Item", item_code):
-        frappe.throw(_("Item {0} not found").format(item_code), frappe.DoesNotExistError)
+    if resolved_item and not frappe.db.exists('Item', resolved_item):
+        frappe.throw(_('Item {0} not found').format(resolved_item), frappe.DoesNotExistError)
+
+    raw_page = get_list_request_value('page')
+    raw_pl = get_list_request_value('page_length')
+    page = max(1, cint(raw_page if raw_page not in (None, '') else page))
+    page_length = cint(raw_pl if raw_pl not in (None, '') else page_length)
 
     sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "creation"
     sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
 
-    filters = {
-        "item_code": item_code,
-        "status": "Approved",
-    }
+    filters = {'status': 'Approved'}
+    if resolved_item:
+        filters['item_code'] = resolved_item
     query_ff = get_query_field_filters(
         allowed_fields=frozenset(REVIEW_LIST_FIELDS),
         reserved_keys=_REVIEW_RESERVED,
@@ -106,8 +113,8 @@ def get_item_review_list(
         fields=REVIEW_LIST_FIELDS,
         filters=filters,
         order_by=f"`tabItem Review`.`{sort_by}` {sort_order}",
-        page=cint(page),
-        page_length=cint(page_length),
+        page=page,
+        page_length=page_length,
         ignore_permissions=True,
     )
 
@@ -116,7 +123,7 @@ def get_item_review_list(
         row.pop("customer", None)
         row.pop("sales_invoice", None)
 
-    summary = _get_rating_summary(item_code)
+    summary = _get_rating_summary(resolved_item or None)
 
     return {
         "data": data,
@@ -145,27 +152,43 @@ def get_item_rating_summary(item_code: str) -> dict:
 # helpers
 # ---------------------------------------------------------------------------
 
-def _get_rating_summary(item_code: str) -> dict:
+def _get_rating_summary(item_code: str | None = None) -> dict:
     """
     Compute average rating and per-star breakdown in a single SQL query.
+
+    Pass ``item_code`` to scope to one item; omit or pass None for all
+    approved reviews.
 
     Frappe's Rating fieldtype stores values as floats between 0 and 1
     (e.g. 0.6 = 3 stars on a 5-star scale). We multiply by 5 to get the
     familiar 1–5 star value and round to one decimal for the average.
     """
-    rows = frappe.db.sql(
-        """
-        SELECT
-            ROUND(rating * 5) AS star,
-            COUNT(*)          AS cnt
-        FROM `tabItem Review`
-        WHERE item_code = %s
-          AND status    = 'Approved'
-        GROUP BY ROUND(rating * 5)
-        """,
-        item_code,
-        as_dict=True,
-    )
+    if item_code:
+        rows = frappe.db.sql(
+            """
+            SELECT
+                ROUND(rating * 5) AS star,
+                COUNT(*)          AS cnt
+            FROM `tabItem Review`
+            WHERE item_code = %s
+              AND status    = 'Approved'
+            GROUP BY ROUND(rating * 5)
+            """,
+            item_code,
+            as_dict=True,
+        )
+    else:
+        rows = frappe.db.sql(
+            """
+            SELECT
+                ROUND(rating * 5) AS star,
+                COUNT(*)          AS cnt
+            FROM `tabItem Review`
+            WHERE status = 'Approved'
+            GROUP BY ROUND(rating * 5)
+            """,
+            as_dict=True,
+        )
 
     breakdown = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     total = 0
@@ -182,8 +205,8 @@ def _get_rating_summary(item_code: str) -> dict:
     avg_rating = round(weighted_sum / total, 1) if total else 0.0
 
     return {
-        "item_code": item_code,
-        "avg_rating": avg_rating,
-        "total_reviews": total,
-        "breakdown": breakdown,
+        'item_code': item_code or None,
+        'avg_rating': avg_rating,
+        'total_reviews': total,
+        'breakdown': breakdown,
     }

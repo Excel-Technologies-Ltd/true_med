@@ -6,6 +6,25 @@ from frappe.utils import cint
 MAX_PAGE_LENGTH = 100
 
 
+def get_list_request_value(name: str):
+    """
+    Read a request value for list pagination / filters.
+
+    When the client sends POST with ``Content-Type: application/json`` and a
+    non-empty body, Frappe's ``make_form_dict`` only loads JSON and omits URL
+    query parameters. This helper falls back to ``request.args`` so e.g.
+    ``?page=2`` still works alongside a JSON body.
+    """
+    fd = frappe.local.form_dict or {}
+    val = fd.get(name)
+    if val is not None and str(val).strip() != '':
+        return val
+    req = getattr(frappe.local, 'request', None)
+    if not req or not getattr(req, 'args', None):
+        return None
+    return req.args.get(name)
+
+
 def get_pagination_meta(total_count: int, page: int, page_length: int) -> dict:
     """
     Build pagination metadata from total count, current page, and page size.
