@@ -12,6 +12,8 @@ STORE_FIELDS = [
     'zip',
     'phone',
     'full_address',
+    'longitude',
+    'latitude',
     'modified',
     'creation',
 ]
