@@ -152,23 +152,14 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"true_med.tasks.all"
-# 	],
-# 	"daily": [
-# 		"true_med.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"true_med.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"true_med.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"true_med.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+    "hourly": [
+        (
+            "true_med.true_med.doctype.store.store."
+            "scheduled_backfill_store_coordinates"
+        ),
+    ],
+}
 
 # Testing
 # -------
