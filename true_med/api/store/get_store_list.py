@@ -75,11 +75,13 @@ def get_store_list(
     sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else 'company_name'
     sort_order = 'asc' if str(sort_order).lower() == 'asc' else 'desc'
 
-    raw_page = get_list_request_value('page')
-    raw_pl = get_list_request_value('page_length')
-    raw_lat = get_list_request_value('latitude')
-    raw_lon = get_list_request_value('longitude')
-    raw_radius = get_list_request_value('radius')
+    raw_page = _request_value('page')
+    raw_pl = _request_value('page_length', 'pageLength', 'per_page',
+                            'perPage')
+    raw_lat = _request_value('latitude', 'lat')
+    raw_lon = _request_value('longitude', 'lon', 'lng', 'long')
+    raw_radius = _request_value('radius', 'distance', 'distance_km',
+                                'distanceKm')
     page = max(1, cint(raw_page if raw_page not in (None, '') else page))
     page_length = cint(raw_pl if raw_pl not in (None, '') else page_length)
     latitude = _to_float(raw_lat if raw_lat not in (None, '') else latitude)
@@ -89,7 +91,21 @@ def get_store_list(
     filters = {}
     query_ff = get_query_field_filters(
         allowed_fields=frozenset(STORE_LIST_FIELDS),
-        reserved_keys=None,
+        reserved_keys=frozenset({
+            'latitude',
+            'longitude',
+            'radius',
+            'lat',
+            'lon',
+            'lng',
+            'long',
+            'distance',
+            'distance_km',
+            'distanceKm',
+            'pageLength',
+            'per_page',
+            'perPage',
+        }),
     )
     ff_json = normalize_field_filters_json(field_filters)
     merge_doctype_field_filters(
@@ -149,6 +165,14 @@ def _build_search_filters(search: str | None) -> list:
         ['state', 'like', keyword],
         ['zip', 'like', keyword],
     ]
+
+
+def _request_value(*keys: str):
+    for key in keys:
+        val = get_list_request_value(key)
+        if val not in (None, ''):
+            return val
+    return None
 
 
 def _to_float(value):
