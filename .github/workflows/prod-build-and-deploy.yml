@@ -53,7 +53,7 @@ jobs:
           export APPS_JSON_BASE64=$(echo ${APPS_JSON} | base64 -w 0)
 
           # Define all tags
-          DOCKER_HUB_TAG="arcapps/true-med:latest"
+          DOCKER_HUB_TAG="arcapps/true-med:v1.0.0"
                     
           # Build once with multiple tags and push to all registries
           docker buildx build \
