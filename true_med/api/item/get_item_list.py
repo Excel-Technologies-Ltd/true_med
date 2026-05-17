@@ -237,6 +237,7 @@ def get_item_list(
     )
 
     _attach_prices(data)
+    _attach_rating(data)
     _attach_custom_images(data)
     _attach_custom_key_benefits(data)
     _attach_custom_external_purchase(data)
@@ -389,6 +390,37 @@ def _attach_prices(items: list) -> None:
 
     for item in items:
         item["prices"] = prices_by_item.get(item["item_code"], [])
+
+
+def _attach_rating(items: list) -> None:
+    """
+    Attach average_rating and rating_count to each item from approved Item Reviews.
+    Uses a single bulk SQL query to avoid N+1.
+    """
+    if not items:
+        return
+
+    item_codes = [item["item_code"] for item in items]
+    placeholders = ", ".join(["%s"] * len(item_codes))
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT item_code, AVG(rating) AS average_rating, COUNT(*) AS rating_count
+        FROM `tabItem Review`
+        WHERE item_code IN ({placeholders})
+          AND status = 'Approved'
+        GROUP BY item_code
+        """,
+        tuple(item_codes),
+        as_dict=True,
+    )
+
+    rating_by_item = {row["item_code"]: row for row in rows}
+
+    for item in items:
+        info = rating_by_item.get(item["item_code"])
+        item["average_rating"] = round(flt(info["average_rating"]), 2) if info else 0.0
+        item["rating_count"] = info["rating_count"] if info else 0
 
 
 def _attach_custom_images(items: list) -> None:

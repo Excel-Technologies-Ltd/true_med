@@ -74,6 +74,11 @@ def create_invoice(
             customer, shipping_address, "Shipping", email, phone
         )
 
+    # Derive state: prefer billing address, fall back to shipping
+    addr_for_state = billing_address or shipping_address
+    state = addr_for_state.get("state") if addr_for_state else None
+    tax_template = _get_tax_template_for_state(state) if state else None
+
     # set_missing_values() → _get_party_details() calls frappe.has_permission()
     # with throw=True, which is NOT bypassed by frappe.flags.ignore_permissions
     # (that flag only affects db_query list calls). The only reliable way to
@@ -89,6 +94,7 @@ def create_invoice(
             billing_address=billing_addr_name,
             shipping_addr_name=shipping_addr_name,
             notes=notes,
+            tax_template=tax_template,
         )
         invoice.insert(ignore_permissions=True)
     finally:
@@ -327,6 +333,7 @@ def _build_invoice(
     billing_address: str = None,
     shipping_addr_name: str = None,
     notes: str = None,
+    tax_template: str = None,
 ) -> "frappe.model.document.Document":
     """
     Construct a Sales Invoice Document, then call set_missing_values() and
@@ -377,15 +384,35 @@ def _build_invoice(
         doc_data["shipping_address_name"] = shipping_addr_name
     if notes:
         doc_data["terms"] = notes
+    if tax_template:
+        doc_data["taxes_and_charges"] = tax_template
 
     invoice = frappe.get_doc(doc_data)
 
     # ERPNext fills in income accounts, cost centre, currency, exchange rate,
-    # applies pricing rules, and sums up all totals + taxes
+    # applies pricing rules, and sums up all totals + taxes.
+    # set_missing_values() reads taxes_and_charges and populates the tax rows.
     invoice.set_missing_values()
     invoice.calculate_taxes_and_totals()
 
     return invoice
+
+
+# ---------------------------------------------------------------------------
+# Tax template resolution
+# ---------------------------------------------------------------------------
+
+def _get_tax_template_for_state(state: str) -> str | None:
+    """
+    Return the Sales Taxes and Charges Template name for a given state, or
+    None if no matching template exists.
+
+    Template names follow the convention "{State} - THB"
+    (e.g., "California - THB").
+    """
+    candidate = f"{state.strip()} - THB"
+    exists = frappe.db.exists("Sales Taxes and Charges Template", candidate)
+    return candidate if exists else None
 
 
 # ---------------------------------------------------------------------------
@@ -402,12 +429,22 @@ def _serialize_invoice(doc) -> dict:
         "due_date": str(doc.due_date),
         "currency": doc.currency,
         "selling_price_list": doc.selling_price_list,
+        "taxes_and_charges": doc.taxes_and_charges,
         "total": flt(doc.total),
         "net_total": flt(doc.net_total),
         "total_taxes_and_charges": flt(doc.total_taxes_and_charges),
         "grand_total": flt(doc.grand_total),
         "rounded_total": flt(doc.rounded_total),
         "outstanding_amount": flt(doc.outstanding_amount),
+        "taxes": [
+            {
+                "charge_type": row.charge_type,
+                "account_head": row.account_head,
+                "rate": flt(row.rate),
+                "tax_amount": flt(row.tax_amount),
+            }
+            for row in doc.get("taxes", [])
+        ],
         "items": [
             {
                 "item_code": row.item_code,
