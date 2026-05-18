@@ -15,6 +15,11 @@ ITEM_GROUP_FIELDS = [
     "item_group_name",
     "parent_item_group",
     "custom_brand",
+    "custom_meta_title",
+    "custom_meta_description",
+    "custom_description",
+    "custom_keywords",
+    "custom_faq",
     "is_group",
     "image",
     "description",
@@ -111,12 +116,16 @@ def get_item_group_list(
         doctype="Item Group",
         allowed_fields=frozenset(ITEM_GROUP_FIELDS),
     )
+    fields = _get_existing_item_group_fields()
+    if sort_by not in fields:
+        sort_by = "lft"
+
     or_filters = _build_search_filters(search)
     order_by = f"`tabItem Group`.`{sort_by}` {sort_order}"
 
     data, pagination = paginate(
         doctype="Item Group",
-        fields=ITEM_GROUP_FIELDS,
+        fields=fields,
         filters=filters,
         or_filters=or_filters,
         order_by=order_by,
@@ -127,6 +136,7 @@ def get_item_group_list(
 
     _attach_children_count(data)
     _attach_item_count(data)
+    _attach_faq(data)
 
     return {"data": data, "pagination": pagination}
 
@@ -134,6 +144,23 @@ def get_item_group_list(
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+def _get_existing_item_group_fields() -> list:
+    """Return only DB-backed Item Group fields to avoid SQL errors when custom fields differ."""
+    meta = frappe.get_meta("Item Group")
+    existing = []
+    for field in ITEM_GROUP_FIELDS:
+        if field in ("name", "modified", "creation"):
+            existing.append(field)
+            continue
+        field_meta = meta.get_field(field)
+        if not field_meta:
+            continue
+        if field_meta.fieldtype in ("Table", "Table MultiSelect"):
+            continue
+        existing.append(field)
+    return existing
+
 
 def _build_filters(
     parent_item_group=None,
@@ -159,6 +186,30 @@ def _build_search_filters(search: str | None) -> list:
         return []
     keyword = f"%{search}%"
     return [["item_group_name", "like", keyword]]
+
+
+def _attach_faq(groups: list) -> None:
+    """Attach custom_faq child rows to each item group in a single bulk query."""
+    if not groups:
+        return
+
+    names = [g["name"] for g in groups]
+    rows = frappe.get_all(
+        "Got Questions",
+        filters={"parent": ["in", names], "parenttype": "Item Group"},
+        fields=["parent", "question", "answer", "idx"],
+        order_by="parent asc, idx asc",
+        ignore_permissions=True,
+    )
+
+    faq_by_parent = {}
+    for row in rows:
+        faq_by_parent.setdefault(row["parent"], []).append(
+            {"question": row.get("question"), "answer": row.get("answer")}
+        )
+
+    for g in groups:
+        g["custom_faq"] = faq_by_parent.get(g["name"], [])
 
 
 def _attach_children_count(groups: list) -> None:

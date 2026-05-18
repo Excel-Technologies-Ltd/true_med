@@ -3,7 +3,7 @@ from frappe import _
 
 
 @frappe.whitelist(allow_guest=True)
-def get_item_group(item_group: str) -> dict:
+def get_item_group(item_group: str = None) -> dict:
     """
     Public API — single Item Group detail with its direct children and
     ancestor breadcrumb trail.
@@ -49,6 +49,9 @@ def get_item_group(item_group: str) -> dict:
     Endpoint:
         GET /api/method/true_med.api.item_group.get_item_group.get_item_group?item_group=Products
     """
+    item_group = item_group or frappe.form_dict.get("item_group") or (
+        frappe.local.request.args.get("item_group") if getattr(frappe.local, "request", None) else None
+    )
     if not item_group:
         frappe.throw(_("item_group is required"), frappe.MandatoryError)
 
@@ -61,6 +64,7 @@ def get_item_group(item_group: str) -> dict:
     data = _get_item_group_data(item_group)
     data["breadcrumbs"] = _get_breadcrumbs(item_group)
     data["children"] = _get_children(item_group)
+    data["custom_faq"] = _get_faq(item_group)
 
     return {"data": data}
 
@@ -69,25 +73,52 @@ def get_item_group(item_group: str) -> dict:
 # helpers
 # ---------------------------------------------------------------------------
 
+_ITEM_GROUP_DETAIL_FIELDS = [
+    "name",
+    "item_group_name",
+    "parent_item_group",
+    "custom_brand",
+    "is_group",
+    "image",
+    "description",
+    "custom_meta_title",
+    "custom_meta_description",
+    "custom_description",
+    "custom_keywords",
+    "custom_faq",
+    "show_in_website",
+    "route",
+    "weightage",
+    "lft",
+    "rgt",
+]
+
+_ALWAYS_PRESENT = frozenset({"name", "lft", "rgt"})
+
+
 def _get_item_group_data(item_group: str) -> dict:
-    fields = [
-        "name",
-        "item_group_name",
-        "parent_item_group",
-        "custom_brand",
-        "is_group",
-        "image",
-        "description",
-        "show_in_website",
-        "route",
-        "weightage",
-        "lft",
-        "rgt",
-    ]
-    doc = frappe.db.get_value(
-        "Item Group", item_group, fields, as_dict=True
-    )
+    meta = frappe.get_meta("Item Group")
+    fields = []
+    for field in _ITEM_GROUP_DETAIL_FIELDS:
+        if field in _ALWAYS_PRESENT:
+            fields.append(field)
+            continue
+        field_meta = meta.get_field(field)
+        if field_meta and field_meta.fieldtype not in ("Table", "Table MultiSelect"):
+            fields.append(field)
+
+    doc = frappe.db.get_value("Item Group", item_group, fields, as_dict=True)
     return dict(doc)
+
+
+def _get_faq(item_group: str) -> list:
+    return frappe.get_all(
+        "Got Questions",
+        filters={"parent": item_group, "parenttype": "Item Group"},
+        fields=["question", "answer"],
+        order_by="idx asc",
+        ignore_permissions=True,
+    )
 
 
 def _get_breadcrumbs(item_group: str) -> list:

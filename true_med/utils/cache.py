@@ -31,6 +31,8 @@ ITEM_DETAIL_TTL = 600    # 10 minutes
 ITEM_LIST_TTL = 180      # 3 minutes
 BLOG_DETAIL_TTL = 600    # 10 minutes — blog content changes rarely
 BLOG_LIST_TTL = 180      # 3 minutes
+BRAND_DETAIL_TTL = 600   # 10 minutes
+BRAND_LIST_TTL = 180     # 3 minutes
 
 # ---------------------------------------------------------------------------
 # Key builders — items
@@ -49,6 +51,24 @@ def item_list_key(**params) -> str:
     payload = json.dumps(params, sort_keys=True, default=str)
     digest = hashlib.sha256(payload.encode()).hexdigest()[:16]
     return f"{_ITEM_LIST_NS}{digest}"
+
+
+# ---------------------------------------------------------------------------
+# Key builders — brands
+# ---------------------------------------------------------------------------
+_BRAND_DETAIL_NS = "true_med|brand:"
+_BRAND_LIST_NS = "true_med|brand_list:"
+
+
+def brand_detail_key(brand: str) -> str:
+    return f"{_BRAND_DETAIL_NS}{brand}"
+
+
+def brand_list_key(**params) -> str:
+    """Deterministic key from all brand list query params."""
+    payload = json.dumps(params, sort_keys=True, default=str)
+    digest = hashlib.sha256(payload.encode()).hexdigest()[:16]
+    return f"{_BRAND_LIST_NS}{digest}"
 
 
 # ---------------------------------------------------------------------------
@@ -148,3 +168,23 @@ def on_blog_category_change(doc, method=None):
 def _bust_blog_list_caches():
     """Delete all blog list cache entries."""
     frappe.cache().delete_keys(_BLOG_LIST_NS)
+
+
+# ---------------------------------------------------------------------------
+# Invalidation — brands (called from hooks.py doc_events)
+# ---------------------------------------------------------------------------
+
+def on_brand_change(doc, method=None):
+    """
+    Invalidate the detail cache for this brand and bust all brand list caches.
+    Also bust item list caches because brand metadata is embedded in item lists.
+    Registered in hooks.py for Brand on_update / on_trash.
+    """
+    frappe.cache().delete_value(brand_detail_key(doc.name))
+    _bust_brand_list_caches()
+    _bust_item_list_caches()
+
+
+def _bust_brand_list_caches():
+    """Delete all brand list cache entries."""
+    frappe.cache().delete_keys(_BRAND_LIST_NS)
