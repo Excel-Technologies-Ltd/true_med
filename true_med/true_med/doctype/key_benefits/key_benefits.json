@@ -8,36 +8,26 @@
  "engine": "InnoDB",
  "field_order": [
   "benefit_title",
-  "benefit_icon",
-  "description",
-  "image"
+  "description"
  ],
  "fields": [
   {
    "fieldname": "benefit_title",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Benefit Title"
-  },
-  {
-   "fieldname": "benefit_icon",
-   "fieldtype": "Attach Image",
-   "label": "Benefit Icon "
   },
   {
    "fieldname": "description",
    "fieldtype": "Long Text",
+   "in_list_view": 1,
    "label": "Description"
-  },
-  {
-   "fieldname": "image",
-   "fieldtype": "Attach Image",
-   "label": "Image"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 01:12:06.774518",
+ "modified": "2026-05-20 20:13:12.523391",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Key Benefits",

@@ -15,12 +15,14 @@
   {
    "fieldname": "marketplace_name",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Marketplace Name",
    "options": "External Marketplace"
   },
   {
    "fieldname": "purchase_url",
    "fieldtype": "Long Text",
+   "in_list_view": 1,
    "label": "Purchase URL"
   },
   {
@@ -32,7 +34,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 02:38:23.701569",
+ "modified": "2026-05-20 20:15:36.803793",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "External Purchase",
