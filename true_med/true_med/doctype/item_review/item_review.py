@@ -37,9 +37,10 @@ def get_invoice_items(doctype, txt, searchfield, start, page_len, filters):
 
 class ItemReview(Document):
     def validate(self):
-        self._validate_invoice_belongs_to_customer()
-        self._validate_item_in_invoice()
-        self._prevent_duplicate_review()
+        pass
+        # self._validate_invoice_belongs_to_customer()
+        # self._validate_item_in_invoice()
+        # self._prevent_duplicate_review()
 
     # ------------------------------------------------------------------
     # Validations
