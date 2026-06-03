@@ -193,7 +193,7 @@
   "is_virtual": 0,
   "label": "Tracking URL",
   "length": 0,
-  "mandatory_depends_on": null,
+  "mandatory_depends_on": "eval:doc.custom_delivery_status == \"Shipped\";",
   "modified": "2026-04-28 22:59:24.015796",
   "module": null,
   "name": "Sales Invoice-custom_tracking_url",
