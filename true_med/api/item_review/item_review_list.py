@@ -32,14 +32,21 @@ ALLOWED_SORT_FIELDS = {
     "creation",
 }
 
-_REVIEW_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset({"item_code"})
-_REVIEW_FORBIDDEN = frozenset({"item_code", "customer", "sales_invoice"})
+_REVIEW_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset(
+    {'item_code', 'status'}
+)
+_REVIEW_FORBIDDEN = frozenset({
+    'item_code',
+    'customer',
+    'sales_invoice',
+    'status',
+})
+APPROVED_REVIEW_STATUS = 'Approved'
 
 
 @frappe.whitelist(allow_guest=True)
 def get_item_review_list(
     item_code: str = None,
-    status: str = None,
     page: int = 1,
     page_length: int = 20,
     field_filters: str = None,
@@ -47,25 +54,23 @@ def get_item_review_list(
     sort_order: str = "desc",
 ) -> dict:
     """
-    Public API — paginated item reviews.
+    Public API — paginated approved item reviews only.
 
     Customer identifiers are never exposed to guests; the response shows
     reviewer_name only.
 
     Query Parameters:
         item_code     (str, optional) When set, limit to this item (must exist).
-                                      When omitted, all item reviews.
-        status        (str, optional) Filter by status (Approved/Pending/Rejected).
+                                      When omitted, all approved reviews.
         page          (int)           Page number, 1-based. Default: 1
         page_length   (int)           Records per page. Default: 20, max: 100
         field_filters (str)           JSON AND filters on review fields
-        Other keys in REVIEW_LIST_FIELDS (except item_code/status/...) as ?key=
+        Other keys in REVIEW_LIST_FIELDS (except item_code) as ?key=
         sort_by       (str)           rating | title | modified | creation
         sort_order   (asc|desc)      Default: desc
 
-    Summary statistics (avg_rating, total_reviews, rating breakdown) are
-    included in the response under the `summary` key (scoped by item_code
-    and status when provided, otherwise global).
+    Summary statistics (avg_rating, total_reviews, rating breakdown) reflect
+  approved reviews only, scoped by item_code when provided.
 
     Endpoint:
         GET /api/method/true_med.api.item_review.item_review_list.get_item_review_list
@@ -88,8 +93,6 @@ def get_item_review_list(
     filters = {}
     if resolved_item:
         filters['item_code'] = resolved_item
-    if status:
-        filters['status'] = status
     query_ff = get_query_field_filters(
         allowed_fields=frozenset(REVIEW_LIST_FIELDS),
         reserved_keys=_REVIEW_RESERVED,
@@ -111,6 +114,8 @@ def get_item_review_list(
         forbidden_fields=_REVIEW_FORBIDDEN,
     )
 
+    filters['status'] = APPROVED_REVIEW_STATUS
+
     data, pagination = paginate(
         doctype="Item Review",
         fields=REVIEW_LIST_FIELDS,
@@ -128,7 +133,10 @@ def get_item_review_list(
         row.pop("customer", None)
         row.pop("sales_invoice", None)
 
-    summary = _get_rating_summary(resolved_item or None, status=status)
+    summary = _get_rating_summary(
+        resolved_item or None,
+        status=APPROVED_REVIEW_STATUS,
+    )
 
     return {
         "data": data,
@@ -150,7 +158,12 @@ def get_item_rating_summary(item_code: str) -> dict:
     if not item_code:
         frappe.throw(_("item_code is required"), frappe.MandatoryError)
 
-    return {"data": _get_rating_summary(item_code)}
+    return {
+        'data': _get_rating_summary(
+            item_code,
+            status=APPROVED_REVIEW_STATUS,
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
