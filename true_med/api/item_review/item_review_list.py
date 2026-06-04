@@ -20,7 +20,6 @@ REVIEW_LIST_FIELDS = [
     "rating",
     "title",
     "review",
-    "image",
     "status",
     "modified",
     "creation",
@@ -122,6 +121,8 @@ def get_item_review_list(
         ignore_permissions=True,
     )
 
+    _attach_review_images(data)
+
     # Strip internal fields not suitable for public consumption
     for row in data:
         row.pop("customer", None)
@@ -217,3 +218,49 @@ def _get_rating_summary(
         'total_reviews': total,
         'breakdown': breakdown,
     }
+
+
+def _get_review_images_doctype() -> str | None:
+    field = frappe.get_meta('Item Review').get_field('images')
+    return field.options if field else None
+
+
+def _attach_review_images(reviews: list) -> None:
+    """Attach Review Images child rows (file paths) in one bulk query."""
+    if not reviews:
+        return
+
+    child_doctype = _get_review_images_doctype()
+    if not child_doctype:
+        for row in reviews:
+            row['images'] = []
+        return
+
+    review_names = [row['name'] for row in reviews if row.get('name')]
+    if not review_names:
+        for row in reviews:
+            row['images'] = []
+        return
+
+    all_images = frappe.get_all(
+        child_doctype,
+        filters={
+            'parent': ['in', review_names],
+            'parenttype': 'Item Review',
+        },
+        fields=['parent', 'image', 'idx'],
+        order_by='parent asc, idx asc',
+        ignore_permissions=True,
+    )
+
+    images_by_review = {}
+    for row in all_images:
+        image_path = row.get('image')
+        if not image_path:
+            continue
+        images_by_review.setdefault(row['parent'], []).append(
+            {'image': image_path}
+        )
+
+    for row in reviews:
+        row['images'] = images_by_review.get(row['name'], [])

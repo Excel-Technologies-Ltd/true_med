@@ -12,17 +12,17 @@
   "cb1",
   "sales_invoice",
   "status",
+  "rating",
   "review_section",
   "item_code",
   "column_break_tqfex",
   "item_name",
   "section_break_7oi08",
-  "rating",
-  "column_break_tzcf0",
-  "image",
-  "section_break_8fm47",
   "title",
-  "review"
+  "section_break_8fm47",
+  "review",
+  "section_break_c0qj5",
+  "images"
  ],
  "fields": [
   {
@@ -118,21 +118,22 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "column_break_tzcf0",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "image",
-   "fieldtype": "Attach Image",
-   "label": "Image"
-  },
-  {
    "fieldname": "section_break_8fm47",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "images",
+   "fieldtype": "Table",
+   "label": "Images",
+   "options": "Review Images"
+  },
+  {
+   "fieldname": "section_break_c0qj5",
    "fieldtype": "Section Break"
   }
  ],
  "links": [],
- "modified": "2026-06-03 02:16:30.406987",
+ "modified": "2026-06-03 19:21:42.424992",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Item Review",
