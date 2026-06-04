@@ -99,10 +99,9 @@
   },
   {
    "fieldname": "title",
-   "fieldtype": "Long Text",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Title",
-   "reqd": 1
+   "label": "Title"
   },
   {
    "fieldname": "review",
@@ -133,7 +132,7 @@
   }
  ],
  "links": [],
- "modified": "2026-06-03 19:21:42.424992",
+ "modified": "2026-06-03 21:42:43.719484",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Item Review",
