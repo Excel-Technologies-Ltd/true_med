@@ -18,6 +18,7 @@ BLOG_LIST_FIELDS = [
     "name",
     "title",
     "published_on",
+    "custom_brand",
     "published",
     "blog_category",
     "blogger",

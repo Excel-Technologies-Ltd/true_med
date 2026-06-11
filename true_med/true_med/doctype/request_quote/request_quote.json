@@ -1,0 +1,212 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "RFQ-.DD.-.MM.-.YY.-.#####",
+ "creation": "2026-06-10 19:47:26.650367",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "product_name",
+  "servbottle_or_bulk",
+  "order_quantity",
+  "column_break_htk6z",
+  "serving_size",
+  "product_format",
+  "target_price_point",
+  "formulaingredient_file_upload_section",
+  "formulaingredient_file",
+  "column_break_juwtd",
+  "is_there_an_allergy_claim",
+  "column_break_kgb0n",
+  "time_frame_to_start_manufacturing",
+  "awareness_section",
+  "how_did_you_hear_about_us",
+  "column_break_cvu1b",
+  "others_name",
+  "company_and_contact_details_section",
+  "company_name",
+  "first_name",
+  "email",
+  "column_break_lmtr9",
+  "website",
+  "last_name",
+  "phone",
+  "section_break_kmb4g",
+  "comments"
+ ],
+ "fields": [
+  {
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Product Name"
+  },
+  {
+   "fieldname": "serving_size",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Serving Size"
+  },
+  {
+   "fieldname": "servbottle_or_bulk",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Serv./Bottle or Bulk"
+  },
+  {
+   "fieldname": "product_format",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Product Format",
+   "options": "Tablet\nPowder\nCapsule\nSoftgel\nLiquid\nGummies\nCream\nStock Formula"
+  },
+  {
+   "fieldname": "order_quantity",
+   "fieldtype": "Data",
+   "label": "Order Quantity"
+  },
+  {
+   "fieldname": "target_price_point",
+   "fieldtype": "Data",
+   "label": "Target Price Point"
+  },
+  {
+   "fieldname": "formulaingredient_file_upload_section",
+   "fieldtype": "Section Break",
+   "label": "Formula/Ingredient File Upload"
+  },
+  {
+   "fieldname": "formulaingredient_file",
+   "fieldtype": "Attach",
+   "label": "Formula/Ingredient File "
+  },
+  {
+   "fieldname": "time_frame_to_start_manufacturing",
+   "fieldtype": "Select",
+   "label": "Time Frame to Start Manufacturing",
+   "options": "Immediately\nVery Soon (2-3 weeks)\nNear Future (3-6 weeks)\nForeseeable Future (6-12 weeks)\nNot-So-Foreseeable Future (12+ weeks)\nJust Kicking The Tires For Now"
+  },
+  {
+   "fieldname": "awareness_section",
+   "fieldtype": "Section Break",
+   "label": "Awareness"
+  },
+  {
+   "fieldname": "how_did_you_hear_about_us",
+   "fieldtype": "Select",
+   "label": "How did you Hear About Us",
+   "options": "Google\nBing\nFacebook\nReferral\nLinkedIn\nothers"
+  },
+  {
+   "fieldname": "is_there_an_allergy_claim",
+   "fieldtype": "Select",
+   "label": "Is there an allergy claim",
+   "options": "Yes\nNo"
+  },
+  {
+   "fieldname": "company_and_contact_details_section",
+   "fieldtype": "Section Break",
+   "label": "Company and Contact Details"
+  },
+  {
+   "fieldname": "company_name",
+   "fieldtype": "Data",
+   "label": "Company Name"
+  },
+  {
+   "fieldname": "website",
+   "fieldtype": "Data",
+   "label": "Website"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name"
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone"
+  },
+  {
+   "fieldname": "comments",
+   "fieldtype": "Long Text",
+   "label": "Comments"
+  },
+  {
+   "fieldname": "column_break_htk6z",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_juwtd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_lmtr9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_kmb4g",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_kgb0n",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_cvu1b",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "others_name",
+   "fieldtype": "Data",
+   "label": "Others Name"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-10 21:33:33.361266",
+ "modified_by": "Administrator",
+ "module": "True Med",
+ "name": "Request Quote",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

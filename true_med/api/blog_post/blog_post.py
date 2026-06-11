@@ -13,6 +13,7 @@ BLOG_POST_FIELDS = [
     "published_on",
     "published",
     "blog_category",
+    "custom_brand",
     "blogger",
     "route",
     "blog_intro",

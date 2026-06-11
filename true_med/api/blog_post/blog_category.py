@@ -13,6 +13,7 @@ BLOG_CATEGORY_FIELDS = [
     "name",
     "title",
     "route",
+    "custom_brand",
     "published",
     "creation",
     "modified"
