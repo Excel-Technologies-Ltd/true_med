@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils.file_manager import save_file
 
 VALID_PRODUCT_FORMATS = {
     "Tablet", "Powder", "Capsule", "Softgel", "Liquid", "Gummies", "Cream", "Stock Formula"
@@ -36,37 +37,13 @@ def submit_request_quote(
     others_name: str = None,
     website: str = None,
     comments: str = None,
+    # New File Upload Parameters
+    formulaingredient_file_name: str = None,
+    formulaingredient_file_data: str = None,
 ) -> dict:
     """
     Public API — submit a Request Quote form without authentication.
-
-    Required fields:
-        first_name      (str)  Contact first name
-        last_name       (str)  Contact last name
-        email           (str)  Contact email address
-        phone           (str)  Contact phone number
-        company_name    (str)  Company name
-        product_name    (str)  Name of the product being quoted
-        order_quantity  (str)  Desired order quantity
-        product_format  (str)  One of: Tablet, Powder, Capsule, Softgel, Liquid,
-                               Gummies, Cream, Stock Formula
-
-    Optional fields:
-        serving_size                       (str)
-        servbottle_or_bulk                 (str)
-        target_price_point                 (str)
-        time_frame_to_start_manufacturing  (str)  One of the valid time-frame options
-        is_there_an_allergy_claim          (str)  "Yes" or "No"
-        how_did_you_hear_about_us          (str)  One of: Google, Bing, Facebook,
-                                                  Referral, LinkedIn, others
-        others_name                        (str)  Required when how_did_you_hear_about_us == "others"
-        website                            (str)
-        comments                           (str)
-
-    Returns the created document name on success.
-
-    Endpoint:
-        POST /api/method/true_med.api.request_quote.request_quote.submit_request_quote
+    ...
     """
     # Required field validation
     for field, value in [
@@ -111,6 +88,7 @@ def submit_request_quote(
     if how_did_you_hear_about_us == "others" and not (others_name or "").strip():
         frappe.throw(_("others_name is required when how_did_you_hear_about_us is 'others'"), frappe.MandatoryError)
 
+    # 1. Create the base document first
     doc = frappe.get_doc(
         {
             "doctype": "Request Quote",
@@ -134,6 +112,29 @@ def submit_request_quote(
         }
     )
     doc.insert(ignore_permissions=True)
+
+    # 2. Handle the file attachment if provided
+    if formulaingredient_file_name and formulaingredient_file_data:
+        try:
+            # save_file automatically attaches it to the DocType and DocName
+            saved_file = save_file(
+                fname=formulaingredient_file_name,
+                content=formulaingredient_file_data,
+                dt="Request Quote",
+                dn=doc.name,
+                folder="Home/Attachments", 
+                decode=True, # Tells Frappe to decode the Base64 string
+                is_private=1 # Marks file as private (recommended for guest uploads)
+            )
+            
+            # Link the generated file URL to your specific attach field
+            doc.db_set("formulaingredient_file", saved_file.file_url)
+            
+        except Exception as e:
+            frappe.log_error(message=frappe.get_traceback(), title="Quote File Upload Failed")
+            # You can decide whether to throw an error here or let the quote succeed without the file.
+
+    # 3. Commit the transaction
     frappe.db.commit()
 
     return {

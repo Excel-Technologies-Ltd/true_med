@@ -8,6 +8,7 @@ def submit_lead(
     first_name: str = None,
     last_name: str = None,
     phone_number: str = None,
+    brand : str = None,
 ) -> dict:
     """
     Public API — create a CRM Lead.
@@ -19,6 +20,7 @@ def submit_lead(
         first_name   (str)  Lead first name
         last_name    (str)  Lead last name
         phone_number (str)  Lead mobile number
+        brand        (str)  Lead brand
 
     Rules:
         - Source is always set to "Advertisement"
@@ -43,6 +45,7 @@ def submit_lead(
             "last_name": (last_name or "").strip() or None,
             "mobile_no": str(phone_number).strip() if phone_number else None,
             "source": lead_source,
+            "custom_brand": brand,
         }
     )
     try:

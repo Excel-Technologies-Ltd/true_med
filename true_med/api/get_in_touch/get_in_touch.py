@@ -10,6 +10,7 @@ def submit_get_in_touch(
     subject: str,
     message: str,
     last_name: str = None,
+    brand : str = None,
 ) -> dict:
     """
     Public API — submit a Get in Touch contact form.
@@ -20,6 +21,7 @@ def submit_get_in_touch(
         email        (str)  Contact email address
         subject      (str)  Message subject
         message      (str)  Message body
+        brand        (str)  Sender's brand
 
     Optional fields:
         last_name    (str)  Sender's last name
@@ -36,6 +38,7 @@ def submit_get_in_touch(
         ("email", email),
         ("subject", subject),
         ("message", message),
+        ("brand", brand),
     ]:
         if not value or not str(value).strip():
             frappe.throw(_("{0} is required").format(field.replace("_", " ").title()), frappe.MandatoryError)
@@ -55,6 +58,7 @@ def submit_get_in_touch(
             "email": email.strip(),
             "subject": subject.strip(),
             "message": message.strip(),
+            "custom_brand": brand,
         }
     )
     doc.insert(ignore_permissions=True)
