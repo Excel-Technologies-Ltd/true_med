@@ -58,7 +58,7 @@ def submit_get_in_touch(
             "email": email.strip(),
             "subject": subject.strip(),
             "message": message.strip(),
-            "custom_brand": brand,
+            "brand": brand,
         }
     )
     doc.insert(ignore_permissions=True)
