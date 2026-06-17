@@ -16,6 +16,7 @@
   "phone_number",
   "email",
   "subject",
+  "company",
   "section_break_iuzip",
   "message"
  ],
@@ -78,11 +79,16 @@
    "fieldtype": "Link",
    "label": "Brand",
    "options": "Brand"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Data",
+   "label": "Company"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-17 00:54:29.801291",
+ "modified": "2026-06-17 02:23:05.883874",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Get in Touch",
