@@ -9,6 +9,7 @@
   "naming_series",
   "customer",
   "reviewer_name",
+  "brand",
   "cb1",
   "sales_invoice",
   "status",
@@ -129,10 +130,16 @@
   {
    "fieldname": "section_break_c0qj5",
    "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "item_code.brand",
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "label": "Brand"
   }
  ],
  "links": [],
- "modified": "2026-06-03 21:42:43.719484",
+ "modified": "2026-06-21 02:00:41.283116",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Item Review",

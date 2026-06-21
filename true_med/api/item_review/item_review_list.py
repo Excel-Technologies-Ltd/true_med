@@ -13,6 +13,7 @@ from true_med.utils.pagination import get_list_request_value, paginate
 REVIEW_LIST_FIELDS = [
     "name",
     "customer",
+    "brand",
     "reviewer_name",
     "item_code",
     "item_name",
@@ -133,9 +134,14 @@ def get_item_review_list(
         row.pop("customer", None)
         row.pop("sales_invoice", None)
 
+    summary_brand = filters.get('brand')
+    if not isinstance(summary_brand, str):
+        summary_brand = None
+
     summary = _get_rating_summary(
         resolved_item or None,
         status=APPROVED_REVIEW_STATUS,
+        brand=summary_brand,
     )
 
     return {
@@ -173,6 +179,7 @@ def get_item_rating_summary(item_code: str) -> dict:
 def _get_rating_summary(
     item_code: str | None = None,
     status: str | None = None,
+    brand: str | None = None,
 ) -> dict:
     """
     Compute average rating and per-star breakdown in a single SQL query.
@@ -192,6 +199,9 @@ def _get_rating_summary(
     if status:
         conditions.append('status = %s')
         params.append(status)
+    if brand:
+        conditions.append('brand = %s')
+        params.append(brand)
 
     where_sql = ''
     if conditions:
@@ -226,6 +236,7 @@ def _get_rating_summary(
 
     return {
         'item_code': item_code or None,
+        'brand': brand or None,
         'status': status or None,
         'avg_rating': avg_rating,
         'total_reviews': total,
