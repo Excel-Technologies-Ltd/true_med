@@ -133,13 +133,14 @@
   },
   {
    "fetch_from": "item_code.brand",
+   "fetch_if_empty": 1,
    "fieldname": "brand",
    "fieldtype": "Data",
    "label": "Brand"
   }
  ],
  "links": [],
- "modified": "2026-06-21 02:00:41.283116",
+ "modified": "2026-06-21 02:51:04.295867",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Item Review",
