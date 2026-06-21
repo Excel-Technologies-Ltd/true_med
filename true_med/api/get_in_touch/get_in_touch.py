@@ -40,7 +40,6 @@ def submit_get_in_touch(
         ("subject", subject),
         ("message", message),
         ("brand", brand),
-        ("company", company)
     ]:
         if not value or not str(value).strip():
             frappe.throw(_("{0} is required").format(field.replace("_", " ").title()), frappe.MandatoryError)
