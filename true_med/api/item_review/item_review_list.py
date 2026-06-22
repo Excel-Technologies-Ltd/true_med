@@ -53,29 +53,11 @@ def get_item_review_list(
     field_filters: str = None,
     sort_by: str = "creation",
     sort_order: str = "desc",
+    **kwargs  # <-- 1. Catch all extra URL parameters here
 ) -> dict:
     """
     Public API — paginated approved item reviews only.
-
-    Customer identifiers are never exposed to guests; the response shows
-    reviewer_name only.
-
-    Query Parameters:
-        item_code     (str, optional) When set, limit to this item (must exist).
-                                      When omitted, all approved reviews.
-        page          (int)           Page number, 1-based. Default: 1
-        page_length   (int)           Records per page. Default: 20, max: 100
-        field_filters (str)           JSON AND filters on review fields
-        Other keys in REVIEW_LIST_FIELDS (except item_code) as ?key=
-        sort_by       (str)           rating | title | modified | creation
-        sort_order   (asc|desc)      Default: desc
-
-    Summary statistics (avg_rating, total_reviews, rating breakdown) reflect
-  approved reviews only, scoped by item_code when provided.
-
-    Endpoint:
-        GET /api/method/true_med.api.item_review.item_review_list.get_item_review_list
-        GET ...get_item_review_list?item_code=ITEM-001
+    ...
     """
     resolved_item = get_list_request_value('item_code') or item_code
     resolved_item = str(resolved_item).strip() if resolved_item else ''
@@ -94,12 +76,25 @@ def get_item_review_list(
     filters = {}
     if resolved_item:
         filters['item_code'] = resolved_item
+        
+    # 2. Dynamically apply kwargs to filters
+    for field in REVIEW_LIST_FIELDS:
+        if field in kwargs and field not in _REVIEW_FORBIDDEN:
+            val = kwargs[field]
+            if val not in (None, ""):
+                # Safely cast rating to float, treat the rest as strings
+                if field == "rating":
+                    filters[field] = float(val)
+                else:
+                    filters[field] = val
+
     query_ff = get_query_field_filters(
         allowed_fields=frozenset(REVIEW_LIST_FIELDS),
         reserved_keys=_REVIEW_RESERVED,
         forbidden_fields=_REVIEW_FORBIDDEN,
     )
     ff_json = normalize_field_filters_json(field_filters)
+    
     merge_doctype_field_filters(
         filters,
         query_ff,
@@ -149,7 +144,6 @@ def get_item_review_list(
         "pagination": pagination,
         "summary": summary,
     }
-
 
 @frappe.whitelist(allow_guest=True)
 def get_item_rating_summary(item_code: str) -> dict:
