@@ -146,6 +146,7 @@ def get_blog_post_list(
     )
 
     _attach_blogger_info(data)
+    _attach_blog_category_names(data)
 
     result = {"data": data, "pagination": pagination}
     blog_cache.set(cache_key, result, ttl=blog_cache.BLOG_LIST_TTL)
@@ -215,3 +216,26 @@ def _attach_blogger_info(posts: list) -> None:
 
     for post in posts:
         post["blogger_info"] = blogger_map.get(post.get("blogger"), {})
+
+
+def _attach_blog_category_names(posts: list) -> None:
+    """Attach blog_category_name from Blog Category in a single bulk query."""
+    if not posts:
+        return
+
+    unique_cats = list({p["blog_category"] for p in posts if p.get("blog_category")})
+    if not unique_cats:
+        for post in posts:
+            post["blog_category_name"] = None
+        return
+
+    rows = frappe.get_all(
+        "Blog Category",
+        filters={"name": ["in", unique_cats]},
+        fields=["name", "title"],
+        ignore_permissions=True,
+    )
+    name_map = {row["name"]: row["title"] for row in rows}
+
+    for post in posts:
+        post["blog_category_name"] = name_map.get(post.get("blog_category"))

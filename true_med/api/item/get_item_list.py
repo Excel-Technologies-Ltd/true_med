@@ -241,6 +241,7 @@ def get_item_list(
     _attach_custom_images(data)
     _attach_custom_key_benefits(data)
     _attach_custom_external_purchase(data)
+    _attach_item_group_names(data)
 
     result = {"data": data, "pagination": pagination}
     item_cache.set(cache_key, result, ttl=item_cache.ITEM_LIST_TTL)
@@ -538,6 +539,29 @@ def _attach_custom_external_purchase(items: list) -> None:
             item["item_code"],
             [],
         )
+
+
+def _attach_item_group_names(items: list) -> None:
+    """Attach item_group_name from Item Group in a single bulk query."""
+    if not items:
+        return
+
+    unique_groups = list({item["item_group"] for item in items if item.get("item_group")})
+    if not unique_groups:
+        for item in items:
+            item["item_group_name"] = None
+        return
+
+    rows = frappe.get_all(
+        "Item Group",
+        filters={"name": ["in", unique_groups]},
+        fields=["name", "item_group_name"],
+        ignore_permissions=True,
+    )
+    name_map = {row["name"]: row["item_group_name"] for row in rows}
+
+    for item in items:
+        item["item_group_name"] = name_map.get(item.get("item_group"))
 
 
 def _get_custom_images_doctype() -> str | None:
