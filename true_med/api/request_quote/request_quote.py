@@ -126,7 +126,7 @@ def submit_request_quote(
                 dn=doc.name,
                 folder="Home/Attachments", 
                 decode=True, # Tells Frappe to decode the Base64 string
-                is_private=1 # Marks file as private (recommended for guest uploads)
+                is_private=0 # Marks file as private (recommended for guest uploads)
             )
             
             # Link the generated file URL to your specific attach field
