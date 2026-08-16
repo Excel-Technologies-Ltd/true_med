@@ -34,7 +34,8 @@
   "last_name",
   "phone",
   "section_break_kmb4g",
-  "comments"
+  "comments",
+  "additional_details"
  ],
  "fields": [
   {
@@ -181,11 +182,16 @@
    "fieldname": "others_name",
    "fieldtype": "Data",
    "label": "Others Name"
+  },
+  {
+   "fieldname": "additional_details",
+   "fieldtype": "Text Editor",
+   "label": "Additional Details"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-10 21:33:33.361266",
+ "modified": "2026-08-15 19:15:21.652847",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Request Quote",

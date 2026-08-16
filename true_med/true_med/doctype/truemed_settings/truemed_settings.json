@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-02 00:31:38.935404",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "request_quote_template",
+  "get_in_touch_template"
+ ],
+ "fields": [
+  {
+   "fieldname": "request_quote_template",
+   "fieldtype": "Link",
+   "label": "Request Quote Template",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "get_in_touch_template",
+   "fieldtype": "Link",
+   "label": "Get In Touch Template",
+   "options": "Email Template"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-02 00:31:38.935404",
+ "modified_by": "Administrator",
+ "module": "True Med",
+ "name": "TrueMed Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

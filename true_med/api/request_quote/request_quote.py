@@ -37,6 +37,7 @@ def submit_request_quote(
     others_name: str = None,
     website: str = None,
     comments: str = None,
+    additional_details: str = None,
     # New File Upload Parameters
     formulaingredient_file_name: str = None,
     formulaingredient_file_data: str = None,
@@ -109,6 +110,7 @@ def submit_request_quote(
             "others_name": (others_name or "").strip() or None,
             "website": (website or "").strip() or None,
             "comments": (comments or "").strip() or None,
+            "additional_details": (additional_details or "").strip() or None,
         }
     )
     doc.insert(ignore_permissions=True)
