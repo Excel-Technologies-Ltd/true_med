@@ -41,6 +41,9 @@ def submit_lead(
     if not email or not str(email).strip():
         frappe.throw(_("Email is required"), frappe.MandatoryError)
 
+    if not cf_turnstile_response or not str(cf_turnstile_response).strip():
+        frappe.throw(_("Please complete the captcha verification"), frappe.MandatoryError)
+
     email = str(email).strip()
     if not frappe.utils.validate_email_address(email):
         frappe.throw(_("Invalid email address"), frappe.ValidationError)

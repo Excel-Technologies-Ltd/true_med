@@ -52,7 +52,7 @@ def submit_request_quote(
     # Rate limit check
     if hasattr(frappe.local, "request") and frappe.local.request:
         remote_ip = frappe.local.request.remote_addr
-        check_rate_limit(remote_ip)
+        check_rate_limit(remote_ip, "request_quote")
     else:
         remote_ip = "127.0.0.1"
 
@@ -72,6 +72,9 @@ def submit_request_quote(
                 _("{0} is required").format(field.replace("_", " ").title()),
                 frappe.MandatoryError,
             )
+
+    if not cf_turnstile_response or not str(cf_turnstile_response).strip():
+        frappe.throw(_("Please complete the captcha verification"), frappe.MandatoryError)
 
     if not frappe.utils.validate_email_address(email):
         frappe.throw(_("Invalid email address"), frappe.ValidationError)

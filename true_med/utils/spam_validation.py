@@ -69,18 +69,21 @@ def analyze_submission(data: dict) -> tuple[str, str]:
         
     return "Approved", ""
 
-def check_rate_limit(ip: str):
+def check_rate_limit(ip: str, form_type: str = "form"):
     """
     Dynamically checks rate limit for form submissions based on site_config.json.
     Throws TooManyRequestsError if limit is exceeded.
     """
-    limit = frappe.utils.cint(frappe.conf.get("form_rate_limit"))
-    seconds = frappe.utils.cint(frappe.conf.get("form_rate_limit_seconds"))
+    limit_key = f"{form_type}_rate_limit"
+    seconds_key = f"{form_type}_rate_limit_seconds"
+    
+    limit = frappe.utils.cint(frappe.conf.get(limit_key) or frappe.conf.get("form_rate_limit"))
+    seconds = frappe.utils.cint(frappe.conf.get(seconds_key) or frappe.conf.get("form_rate_limit_seconds"))
     
     if not limit or not seconds:
         return
         
-    cache_key = f"true_med_form_rate_limit:{ip}"
+    cache_key = f"true_med_{form_type}_rate_limit:{ip}"
     
     # We use a redis pipeline to properly increment and set expiry
     pipeline = frappe.cache().pipeline()
