@@ -35,7 +35,10 @@
   "phone",
   "section_break_kmb4g",
   "comments",
-  "additional_details"
+  "additional_details",
+  "section_break_spam",
+  "status",
+  "spam_reason"
  ],
  "fields": [
   {
@@ -187,6 +190,26 @@
    "fieldname": "additional_details",
    "fieldtype": "Text Editor",
    "label": "Additional Details"
+  },
+  {
+   "fieldname": "section_break_spam",
+   "fieldtype": "Section Break",
+   "label": "Spam Validation"
+  },
+  {
+   "default": "Review",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Approved\nReview\nSpam",
+   "in_list_view": 1
+  },
+  {
+   "depends_on": "eval:doc.spam_reason",
+   "fieldname": "spam_reason",
+   "fieldtype": "Data",
+   "label": "Spam Reason",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

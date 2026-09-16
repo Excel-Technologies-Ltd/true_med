@@ -152,6 +152,10 @@ doc_events = {
         "on_update": "true_med.utils.cache.on_blog_category_change",
         "on_trash": "true_med.utils.cache.on_blog_category_change",
     },
+    # ---- Leads ----
+    "Lead": {
+        "after_insert": "true_med.utils.email_notifications.lead_after_insert",
+    },
 }
 
 # Scheduled Tasks
@@ -163,6 +167,9 @@ scheduler_events = {
             "true_med.true_med.doctype.store.store."
             "scheduled_backfill_store_coordinates"
         ),
+    ],
+    "daily": [
+        "true_med.tasks.delete_old_spam_submissions"
     ],
 }
 

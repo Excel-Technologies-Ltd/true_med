@@ -4156,5 +4156,16 @@
   "translatable": 0,
   "unique": 0,
   "width": null
+ },
+
+ {
+  "docstatus": 0,
+  "doctype": "Custom Field",
+  "dt": "Lead",
+  "fieldname": "spam_reason",
+  "fieldtype": "Data",
+  "insert_after": "status",
+  "label": "Spam Reason",
+  "name": "Lead-spam_reason"
  }
 ]

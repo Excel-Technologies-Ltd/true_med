@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils.file_manager import save_file
+from true_med.utils.spam_validation import verify_turnstile, analyze_submission, check_rate_limit
 
 VALID_PRODUCT_FORMATS = {
     "Tablet", "Powder", "Capsule", "Softgel", "Liquid", "Gummies", "Cream", "Stock Formula"
@@ -41,11 +42,20 @@ def submit_request_quote(
     # New File Upload Parameters
     formulaingredient_file_name: str = None,
     formulaingredient_file_data: str = None,
+    cf_turnstile_response: str = None,
+    website_url_hp: str = None,
 ) -> dict:
     """
     Public API — submit a Request Quote form without authentication.
     ...
     """
+    # Rate limit check
+    if hasattr(frappe.local, "request") and frappe.local.request:
+        remote_ip = frappe.local.request.remote_addr
+        check_rate_limit(remote_ip)
+    else:
+        remote_ip = "127.0.0.1"
+
     # Required field validation
     for field, value in [
         ("first_name", first_name),
@@ -89,6 +99,23 @@ def submit_request_quote(
     if how_did_you_hear_about_us == "others" and not (others_name or "").strip():
         frappe.throw(_("others_name is required when how_did_you_hear_about_us is 'others'"), frappe.MandatoryError)
 
+    # Spam Validation
+    status = "Review"
+    spam_reason = ""
+    
+    if not verify_turnstile(cf_turnstile_response, remote_ip):
+        status = "Spam"
+        spam_reason = "Turnstile verification failed"
+    else:
+        submission_data = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "message": (comments or "") + " " + (additional_details or ""),
+            "website_url_hp": website_url_hp
+        }
+        status, spam_reason = analyze_submission(submission_data)
+
     # 1. Create the base document first
     doc = frappe.get_doc(
         {
@@ -111,6 +138,8 @@ def submit_request_quote(
             "website": (website or "").strip() or None,
             "comments": (comments or "").strip() or None,
             "additional_details": (additional_details or "").strip() or None,
+            "status": status,
+            "spam_reason": spam_reason,
         }
     )
     doc.insert(ignore_permissions=True)
