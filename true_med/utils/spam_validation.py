@@ -3,7 +3,7 @@ import requests
 import re
 from frappe import _
 
-def verify_turnstile(token: str, ip: str) -> bool:
+def verify_turnstile(token: str, ip: str = None) -> bool:
     """
     Verifies the Cloudflare Turnstile token.
     Returns True if valid, False otherwise.
@@ -17,6 +17,12 @@ def verify_turnstile(token: str, ip: str) -> bool:
         # Assume valid if not configured, or return False. Depending on strictness.
         return True
         
+    if not ip:
+        if hasattr(frappe.local, "request") and frappe.local.request:
+            ip = frappe.local.request.remote_addr
+        else:
+            ip = "127.0.0.1"
+            
     try:
         response = requests.post(
             "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -69,38 +75,10 @@ def analyze_submission(data: dict) -> tuple[str, str]:
         
     return "Approved", ""
 
-def check_rate_limit(ip: str, form_type: str = "form"):
+def get_form_rate_limit():
     """
-    Dynamically checks rate limit for form submissions based on site_config.json.
-    Throws TooManyRequestsError if limit is exceeded.
+    Returns the global form rate limit from site_config.json, defaults to 3.
+    Intended to be used as a callable in Frappe's @rate_limit decorator.
     """
-    limit_key = f"{form_type}_rate_limit"
-    seconds_key = f"{form_type}_rate_limit_seconds"
-    
-    limit = frappe.utils.cint(frappe.conf.get(limit_key) or frappe.conf.get("form_rate_limit"))
-    seconds = frappe.utils.cint(frappe.conf.get(seconds_key) or frappe.conf.get("form_rate_limit_seconds"))
-    
-    if not limit or not seconds:
-        return
-        
-    cache_key = f"true_med_{form_type}_rate_limit:{ip}"
-    
-    # We use a redis pipeline to properly increment and set expiry
-    pipeline = frappe.cache().pipeline()
-    pipeline.incr(cache_key)
-    # We only set expire if we are the ones who created it (count = 1), but redis EXPIRE will just update it.
-    # To be safe, we can just always set EXPIRE on every request, but it resets the window.
-    # A better sliding window: 
-    # Use get to check count, if None set with expire, else incr.
-    
-    count = frappe.utils.cint(frappe.cache().get(cache_key))
-    if count >= limit:
-        frappe.throw(_("Too many requests. Please try again later."), frappe.TooManyRequestsError)
-        
-    if count == 0:
-        frappe.cache().set_value(cache_key, 1, expires_in_sec=seconds)
-    else:
-        # standard redis incr bypasses standard cache method easily via pipeline or we can just set_value but the expiry is tricky.
-        # let's just use simple get/set. In high concurrency it might lose some counts, but it's okay for basic rate limit.
-        frappe.cache().set_value(cache_key, count + 1, expires_in_sec=seconds)
+    return frappe.utils.cint(frappe.conf.get("global_form_rate_limit") or 3)
 
