@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from true_med.utils.spam_validation import verify_turnstile, analyze_submission, check_rate_limit
 
 
 @frappe.whitelist(allow_guest=True)
@@ -9,6 +10,8 @@ def submit_lead(
     last_name: str = None,
     phone_number: str = None,
     brand : str = None,
+    cf_turnstile_response: str = None,
+    website_url_hp: str = None,
 ) -> dict:
     """
     Public API — create a CRM Lead.
@@ -28,14 +31,41 @@ def submit_lead(
     Endpoint:
         POST /api/method/true_med.api.lead.create_lead.submit_lead
     """
+    # Rate limit check
+    if hasattr(frappe.local, "request") and frappe.local.request:
+        remote_ip = frappe.local.request.remote_addr
+        check_rate_limit(remote_ip)
+    else:
+        remote_ip = "127.0.0.1"
+
     if not email or not str(email).strip():
         frappe.throw(_("Email is required"), frappe.MandatoryError)
+
+    if not cf_turnstile_response or not str(cf_turnstile_response).strip():
+        frappe.throw(_("Please complete the captcha verification"), frappe.MandatoryError)
 
     email = str(email).strip()
     if not frappe.utils.validate_email_address(email):
         frappe.throw(_("Invalid email address"), frappe.ValidationError)
 
     lead_source = _ensure_advertisement_lead_source()
+
+    # Spam Validation
+    status = "Review"
+    spam_reason = ""
+    
+    if not verify_turnstile(cf_turnstile_response, remote_ip):
+        status = "Spam"
+        spam_reason = "Turnstile verification failed"
+    else:
+        submission_data = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "message": "",
+            "website_url_hp": website_url_hp
+        }
+        status, spam_reason = analyze_submission(submission_data)
 
     lead_doc = frappe.get_doc(
         {
@@ -46,6 +76,8 @@ def submit_lead(
             "mobile_no": str(phone_number).strip() if phone_number else None,
             "source": lead_source,
             "custom_brand": brand,
+            "status": status,
+            "spam_reason": spam_reason,
         }
     )
     try:
