@@ -1,7 +1,8 @@
 import frappe
 from frappe import _
 from frappe.utils.file_manager import save_file
-from true_med.utils.spam_validation import verify_turnstile, analyze_submission, check_rate_limit
+from true_med.utils.spam_validation import verify_turnstile, analyze_submission, get_form_rate_limit
+from frappe.rate_limiter import rate_limit
 
 VALID_PRODUCT_FORMATS = {
     "Tablet", "Powder", "Capsule", "Softgel", "Liquid", "Gummies", "Cream", "Stock Formula"
@@ -20,6 +21,7 @@ VALID_HEAR_ABOUT_US = {"Google", "Bing", "Facebook", "Referral", "LinkedIn", "ot
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=get_form_rate_limit, seconds=86400, ip_based=True)
 def submit_request_quote(
     first_name: str,
     last_name: str,
@@ -49,13 +51,6 @@ def submit_request_quote(
     Public API — submit a Request Quote form without authentication.
     ...
     """
-    # Rate limit check
-    if hasattr(frappe.local, "request") and frappe.local.request:
-        remote_ip = frappe.local.request.remote_addr
-        check_rate_limit(remote_ip, "request_quote")
-    else:
-        remote_ip = "127.0.0.1"
-
     # Required field validation
     for field, value in [
         ("first_name", first_name),
@@ -66,15 +61,16 @@ def submit_request_quote(
         ("product_name", product_name),
         ("order_quantity", order_quantity),
         ("product_format", product_format),
+        ("cf_turnstile_response", cf_turnstile_response),
     ]:
         if not value or not str(value).strip():
-            frappe.throw(
-                _("{0} is required").format(field.replace("_", " ").title()),
-                frappe.MandatoryError,
-            )
-
-    if not cf_turnstile_response or not str(cf_turnstile_response).strip():
-        frappe.throw(_("Please complete the captcha verification"), frappe.MandatoryError)
+            if field == "cf_turnstile_response":
+                frappe.throw(_("Please complete the captcha verification"), frappe.MandatoryError)
+            else:
+                frappe.throw(
+                    _("{0} is required").format(field.replace("_", " ").title()),
+                    frappe.MandatoryError,
+                )
 
     if not frappe.utils.validate_email_address(email):
         frappe.throw(_("Invalid email address"), frappe.ValidationError)
@@ -106,7 +102,7 @@ def submit_request_quote(
     status = "Review"
     spam_reason = ""
     
-    if not verify_turnstile(cf_turnstile_response, remote_ip):
+    if not verify_turnstile(cf_turnstile_response):
         status = "Spam"
         spam_reason = "Turnstile verification failed"
     else:

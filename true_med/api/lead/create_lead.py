@@ -1,9 +1,11 @@
 import frappe
 from frappe import _
-from true_med.utils.spam_validation import verify_turnstile, analyze_submission, check_rate_limit
+from true_med.utils.spam_validation import verify_turnstile, analyze_submission, get_form_rate_limit
+from frappe.rate_limiter import rate_limit
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=get_form_rate_limit, seconds=86400, ip_based=True)
 def submit_lead(
     email: str,
     first_name: str = None,
@@ -31,13 +33,6 @@ def submit_lead(
     Endpoint:
         POST /api/method/true_med.api.lead.create_lead.submit_lead
     """
-    # Rate limit check
-    if hasattr(frappe.local, "request") and frappe.local.request:
-        remote_ip = frappe.local.request.remote_addr
-        check_rate_limit(remote_ip)
-    else:
-        remote_ip = "127.0.0.1"
-
     if not email or not str(email).strip():
         frappe.throw(_("Email is required"), frappe.MandatoryError)
 
@@ -54,7 +49,7 @@ def submit_lead(
     status = "Review"
     spam_reason = ""
     
-    if not verify_turnstile(cf_turnstile_response, remote_ip):
+    if not verify_turnstile(cf_turnstile_response):
         status = "Spam"
         spam_reason = "Turnstile verification failed"
     else:
