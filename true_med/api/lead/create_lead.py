@@ -1,14 +1,19 @@
 import frappe
 from frappe import _
+from true_med.utils.spam_validation import verify_turnstile, analyze_submission, get_form_rate_limit
+from frappe.rate_limiter import rate_limit
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=get_form_rate_limit, seconds=86400, ip_based=True)
 def submit_lead(
     email: str,
     first_name: str = None,
     last_name: str = None,
     phone_number: str = None,
     brand : str = None,
+    cf_turnstile_response: str = None,
+    website_url_hp: str = None,
 ) -> dict:
     """
     Public API — create a CRM Lead.
@@ -31,11 +36,31 @@ def submit_lead(
     if not email or not str(email).strip():
         frappe.throw(_("Email is required"), frappe.MandatoryError)
 
+    if not cf_turnstile_response or not str(cf_turnstile_response).strip():
+        frappe.throw(_("Please complete the captcha verification"), frappe.MandatoryError)
+
     email = str(email).strip()
     if not frappe.utils.validate_email_address(email):
         frappe.throw(_("Invalid email address"), frappe.ValidationError)
 
     lead_source = _ensure_advertisement_lead_source()
+
+    # Spam Validation
+    status = "Review"
+    spam_reason = ""
+    
+    if not verify_turnstile(cf_turnstile_response):
+        status = "Spam"
+        spam_reason = "Turnstile verification failed"
+    else:
+        submission_data = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "message": "",
+            "website_url_hp": website_url_hp
+        }
+        status, spam_reason = analyze_submission(submission_data)
 
     lead_doc = frappe.get_doc(
         {
@@ -46,6 +71,8 @@ def submit_lead(
             "mobile_no": str(phone_number).strip() if phone_number else None,
             "source": lead_source,
             "custom_brand": brand,
+            "status": status,
+            "spam_reason": spam_reason,
         }
     )
     try:
