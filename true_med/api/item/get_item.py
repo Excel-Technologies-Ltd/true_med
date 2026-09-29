@@ -70,6 +70,8 @@ ITEM_FIELDS = [
     "has_expiry_date",
     "shelf_life_in_days",
     "end_of_life",
+    "custom_is_best_selling",
+    "custom_is_featured_item",
     "disabled",
     "weight_per_unit",
     "weight_uom",

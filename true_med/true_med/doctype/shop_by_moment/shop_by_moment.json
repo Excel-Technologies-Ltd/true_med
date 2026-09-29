@@ -8,21 +8,30 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "moment_name"
+  "moment_name",
+  "feature_image"
  ],
  "fields": [
   {
+   "allow_in_quick_entry": 1,
    "fieldname": "moment_name",
    "fieldtype": "Data",
    "in_filter": 1,
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Moment Name",
+   "reqd": 1,
    "unique": 1
+  },
+  {
+   "fieldname": "feature_image",
+   "fieldtype": "Attach Image",
+   "label": "Feature Image"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-28 01:24:30.807758",
+ "modified": "2026-09-29 02:27:23.561372",
  "modified_by": "Administrator",
  "module": "True Med",
  "name": "Shop by Moment",

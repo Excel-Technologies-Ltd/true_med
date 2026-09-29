@@ -26,6 +26,8 @@ ITEM_LIST_FIELDS = [
     "stock_uom",
     "custom_is_new",
     "custom_is_best_selling",
+    "custom_is_featured_item",
+    "custom_shop_by_moment",
     "is_stock_item",
     "has_variants",
     "variant_of",

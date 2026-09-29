@@ -33,6 +33,8 @@ BLOG_DETAIL_TTL = 600    # 10 minutes — blog content changes rarely
 BLOG_LIST_TTL = 180      # 3 minutes
 BRAND_DETAIL_TTL = 600   # 10 minutes
 BRAND_LIST_TTL = 180     # 3 minutes
+SHOP_BY_MOMENT_DETAIL_TTL = 600
+SHOP_BY_MOMENT_LIST_TTL = 180
 
 # ---------------------------------------------------------------------------
 # Key builders — items
@@ -69,6 +71,24 @@ def brand_list_key(**params) -> str:
     payload = json.dumps(params, sort_keys=True, default=str)
     digest = hashlib.sha256(payload.encode()).hexdigest()[:16]
     return f"{_BRAND_LIST_NS}{digest}"
+
+
+# ---------------------------------------------------------------------------
+# Key builders — shop by moment
+# ---------------------------------------------------------------------------
+_SHOP_BY_MOMENT_DETAIL_NS = "true_med|shop_by_moment:"
+_SHOP_BY_MOMENT_LIST_NS = "true_med|shop_by_moment_list:"
+
+
+def shop_by_moment_detail_key(name: str) -> str:
+    return f"{_SHOP_BY_MOMENT_DETAIL_NS}{name}"
+
+
+def shop_by_moment_list_key(**params) -> str:
+    """Deterministic key from all shop by moment list query params."""
+    payload = json.dumps(params, sort_keys=True, default=str)
+    digest = hashlib.sha256(payload.encode()).hexdigest()[:16]
+    return f"{_SHOP_BY_MOMENT_LIST_NS}{digest}"
 
 
 # ---------------------------------------------------------------------------
@@ -188,3 +208,23 @@ def on_brand_change(doc, method=None):
 def _bust_brand_list_caches():
     """Delete all brand list cache entries."""
     frappe.cache().delete_keys(_BRAND_LIST_NS)
+
+
+# ---------------------------------------------------------------------------
+# Invalidation — shop by moment (called from hooks.py doc_events)
+# ---------------------------------------------------------------------------
+
+def on_shop_by_moment_change(doc, method=None):
+    """
+    Invalidate the detail cache for this shop by moment and bust all list caches.
+    Also bust item list caches because shop by moment metadata may be embedded.
+    Registered in hooks.py for Shop by Moment on_update / on_trash.
+    """
+    frappe.cache().delete_value(shop_by_moment_detail_key(doc.name))
+    _bust_shop_by_moment_list_caches()
+    _bust_item_list_caches()
+
+
+def _bust_shop_by_moment_list_caches():
+    """Delete all shop by moment list cache entries."""
+    frappe.cache().delete_keys(_SHOP_BY_MOMENT_LIST_NS)
