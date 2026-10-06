@@ -104,6 +104,7 @@ def get_item_list(
     field_filters: str = None,
     price_min: float = None,
     price_max: float = None,
+    average_rating: float = None,
     is_stock_item: int = None,
     has_variants: int = None,
     disabled: int = 0,
@@ -137,6 +138,9 @@ def get_item_list(
         price_min      (float)     At least one selling Item Price with
                                   price_list_rate >= price_min
         price_max      (float)     At least one selling price <= price_max
+        average_rating (float)     Minimum average star rating (1–5 scale)
+                                  from approved Item Reviews, e.g. 4 =
+                                  "4 stars & up"
         is_stock_item  (0|1)      Filter stocked items only
         has_variants   (0|1)       Narrow to template (1) or standalone (0)
         disabled       (0|1)      Include disabled items (default 0 = active)
@@ -171,6 +175,7 @@ def get_item_list(
         query_field_filters=query_field_filters,
         price_min=price_min,
         price_max=price_max,
+        average_rating=average_rating,
         is_stock_item=is_stock_item,
         has_variants=has_variants,
         disabled=disabled,
@@ -209,8 +214,18 @@ def get_item_list(
         price_max=price_max,
         disabled=cint(disabled) if disabled is not None else 0,
     )
-    if price_names is not None:
-        if not price_names:
+    rating_names = _item_names_matching_min_rating(average_rating)
+
+    restricted_names = None
+    for names in (price_names, rating_names):
+        if names is None:
+            continue
+        restricted_names = (
+            set(names) if restricted_names is None else restricted_names & set(names)
+        )
+
+    if restricted_names is not None:
+        if not restricted_names:
             pl = min(max(1, cint(page_length)), MAX_PAGE_LENGTH)
             result = {
                 "data": [],
@@ -218,7 +233,7 @@ def get_item_list(
             }
             item_cache.set(cache_key, result, ttl=item_cache.ITEM_LIST_TTL)
             return result
-        filters["name"] = ["in", price_names]
+        filters["name"] = ["in", list(restricted_names)]
 
     or_filters = _build_search_filters(
         search=search,
@@ -367,6 +382,32 @@ def _item_names_matching_selling_price_range(
         WHERE {" AND ".join(conditions)}
     """
     return frappe.db.sql(sql, tuple(params), pluck=True)
+
+
+def _item_names_matching_min_rating(average_rating) -> list[str] | None:
+    """
+    Return item codes whose approved-review average is at least
+    ``average_rating`` stars (1–5). Frappe's Rating fieldtype stores 0–1,
+    so the stored average is scaled by 5 before comparing.
+    """
+    if average_rating is None or str(average_rating).strip() == "":
+        return None
+
+    min_stars = flt(average_rating)
+    if min_stars <= 0:
+        return None
+
+    return frappe.db.sql(
+        """
+        SELECT item_code
+        FROM `tabItem Review`
+        WHERE status = 'Approved'
+        GROUP BY item_code
+        HAVING ROUND(AVG(rating) * 5, 2) >= %s
+        """,
+        (min_stars,),
+        pluck=True,
+    )
 
 
 def _attach_prices(items: list) -> None:
