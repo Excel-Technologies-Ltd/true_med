@@ -3,12 +3,13 @@ from frappe import _
 
 
 @frappe.whitelist(allow_guest=True)
-def get_sales_tax(title: str = None) -> dict:
+def get_sales_tax(title: str = None, name: str = None) -> dict:
     """
     Public API — Sales Taxes and Charges Template detail with all tax rows.
 
-    Query Parameter:
-        title  (str, required)  The title/name of the template.
+    Query Parameters (one required):
+        title  (str)  Template title, e.g. "Wyoming"
+        name   (str)  Template name, e.g. "Wyoming - TPI" (as returned by the list API)
 
     Response:
         {
@@ -33,29 +34,28 @@ def get_sales_tax(title: str = None) -> dict:
         }
 
     Error responses:
-        400  title not provided
+        400  neither title nor name provided
         404  template not found
 
     Endpoint:
-        GET /api/method/true_med.api.sales_tax.get_sales_tax.get_sales_tax?title=Wisconsin%20-%20THB
+        GET /api/method/true_med.api.sales_tax.get_sales_tax.get_sales_tax?title=Wisconsin
+        GET /api/method/true_med.api.sales_tax.get_sales_tax.get_sales_tax?name=Wisconsin%20-%20TPI
     """
-    title = title or frappe.form_dict.get("title") or (
-        frappe.local.request.args.get("title")
-        if getattr(frappe.local, "request", None)
-        else None
-    )
-    if not title:
-        frappe.throw(_("title is required"), frappe.MandatoryError)
+    title = title or _get_request_arg("title")
+    name = name or _get_request_arg("name")
+    if not title and not name:
+        frappe.throw(_("title or name is required"), frappe.MandatoryError)
 
-    # Look up by the `title` field (e.g. "Wisconsin"), not by the composite name
-    name = frappe.db.get_value(
-        "Sales Taxes and Charges Template", {"title": title, "disabled": 0}, "name"
-    )
-    if not name:
+    # `name` is the composite key ("Wisconsin - TPI"); `title` is "Wisconsin"
+    lookup = {"name": name} if name else {"title": title}
+    lookup["disabled"] = 0
+    template = frappe.db.get_value("Sales Taxes and Charges Template", lookup, "name")
+    if not template:
         frappe.throw(
-            _("Sales Taxes and Charges Template {0} not found").format(title),
+            _("Sales Taxes and Charges Template {0} not found").format(name or title),
             frappe.DoesNotExistError,
         )
+    name = template
 
     data = _get_template_data(name)
     data["taxes"] = _get_taxes(name)
@@ -66,6 +66,14 @@ def get_sales_tax(title: str = None) -> dict:
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+
+def _get_request_arg(key: str):
+    return frappe.form_dict.get(key) or (
+        frappe.local.request.args.get(key)
+        if getattr(frappe.local, "request", None)
+        else None
+    )
 
 
 def _get_template_data(title: str) -> dict:

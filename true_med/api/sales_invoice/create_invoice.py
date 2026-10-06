@@ -72,7 +72,7 @@ def create_invoice(
     )
 
     # Tax is determined by where the goods are delivered (shipping state)
-    tax_template = _get_tax_template_for_state(shipping_address["state"])
+    tax_template = _get_tax_template_for_state(shipping_address["state"], company)
 
     # set_missing_values() → _get_party_details() calls frappe.has_permission()
     # with throw=True, which is NOT bypassed by frappe.flags.ignore_permissions
@@ -412,17 +412,16 @@ def _build_invoice(
 # Tax template resolution
 # ---------------------------------------------------------------------------
 
-def _get_tax_template_for_state(state: str) -> str | None:
+def _get_tax_template_for_state(state: str, company: str) -> str | None:
     """
-    Return the Sales Taxes and Charges Template name for a given state, or
-    None if no matching template exists.
-
-    Template names follow the convention "{State} - THB"
-    (e.g., "California - THB").
+    Return the enabled Sales Taxes and Charges Template whose title matches the
+    state for this company (e.g. title "Wyoming" → "Wyoming - TPI"), or None.
     """
-    candidate = f"{state.strip()} - THB"
-    exists = frappe.db.exists("Sales Taxes and Charges Template", candidate)
-    return candidate if exists else None
+    return frappe.db.get_value(
+        "Sales Taxes and Charges Template",
+        {"title": state.strip(), "company": company, "disabled": 0},
+        "name",
+    )
 
 
 # ---------------------------------------------------------------------------
