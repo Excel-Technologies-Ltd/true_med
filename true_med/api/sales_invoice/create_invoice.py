@@ -28,9 +28,10 @@ def create_invoice(
         items            (list, required) [{"item_code": "X", "qty": 2}, ...]
                                           Optionally include "rate" to override price.
         phone            (str)            Contact phone number
-        billing_address  (dict)           {address_line1, address_line2, city,
+        billing_address  (dict, required) {address_line1, address_line2, city,
                                            state, pincode, country}
-        shipping_address (dict)           Same shape; defaults to billing_address
+        shipping_address (dict, required) Same shape; its state determines the
+                                          tax template
         notes            (str)            Order notes / delivery instructions
 
     Response:
@@ -51,33 +52,27 @@ def create_invoice(
     """
     # Frappe passes list/dict params as JSON strings when called over HTTP
     items = _parse_json(items, "items")
-    billing_address = _parse_json(billing_address, "billing_address") if billing_address else None
-    shipping_address = _parse_json(shipping_address, "shipping_address") if shipping_address else None
+    # Both addresses are mandatory; validated below so callers get a clear error
+    billing_address = _parse_json(billing_address, "billing_address")
+    shipping_address = _parse_json(shipping_address, "shipping_address")
 
     _validate_inputs(customer_name, email, items)
+    _validate_address(billing_address, "billing_address")
+    _validate_address(shipping_address, "shipping_address")
 
     customer = _get_or_create_customer(customer_name, email, phone)
 
     company = _get_default_company()
 
-    # Resolve addresses — billing required for address field on invoice,
-    # shipping defaults to billing when not provided separately.
-    billing_addr_name = None
-    shipping_addr_name = None
-    if billing_address:
-        billing_addr_name = _upsert_address(
-            customer, billing_address, "Billing", email, phone
-        )
-        shipping_addr_name = billing_addr_name
-    if shipping_address:
-        shipping_addr_name = _upsert_address(
-            customer, shipping_address, "Shipping", email, phone
-        )
+    billing_addr_name = _upsert_address(
+        customer, billing_address, "Billing", email, phone
+    )
+    shipping_addr_name = _upsert_address(
+        customer, shipping_address, "Shipping", email, phone
+    )
 
-    # Derive state: prefer billing address, fall back to shipping
-    addr_for_state = billing_address or shipping_address
-    state = addr_for_state.get("state") if addr_for_state else None
-    tax_template = _get_tax_template_for_state(state) if state else None
+    # Tax is determined by where the goods are delivered (shipping state)
+    tax_template = _get_tax_template_for_state(shipping_address["state"])
 
     # set_missing_values() → _get_party_details() calls frappe.has_permission()
     # with throw=True, which is NOT bypassed by frappe.flags.ignore_permissions
@@ -132,6 +127,21 @@ def _validate_inputs(customer_name: str, email: str, items: list):
                 _("Item {0} does not exist or is disabled").format(row["item_code"]),
                 frappe.ValidationError,
             )
+
+
+REQUIRED_ADDRESS_FIELDS = ("address_line1", "city", "state", "country")
+
+
+def _validate_address(addr, field_name: str):
+    if not addr or not isinstance(addr, dict):
+        frappe.throw(_("{0} is required").format(field_name), frappe.MandatoryError)
+
+    missing = [f for f in REQUIRED_ADDRESS_FIELDS if not str(addr.get(f) or "").strip()]
+    if missing:
+        frappe.throw(
+            _("{0}: missing required field(s): {1}").format(field_name, ", ".join(missing)),
+            frappe.MandatoryError,
+        )
 
 
 # ---------------------------------------------------------------------------
