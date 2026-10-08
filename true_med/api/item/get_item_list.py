@@ -68,6 +68,8 @@ ALLOWED_SORT_FIELDS = {
     "standard_rate",
     "modified",
     "creation",
+    # Virtual: lowest selling Item Price (see _paginate_by_price)
+    "price",
 }
 
 _FIELD_FILTERS_FORBIDDEN = frozenset({"variant_of"})
@@ -145,8 +147,13 @@ def get_item_list(
         has_variants   (0|1)       Narrow to template (1) or standalone (0)
         disabled       (0|1)      Include disabled items (default 0 = active)
         sort_by        (str)       item_code, item_name, item_group, brand,
-                                   standard_rate, modified, creation
+                                   standard_rate, modified, creation, price.
+                                   `price` sorts by the item's lowest selling
+                                   Item Price (within price_min/price_max when
+                                   given); items without a price go last.
         sort_order     (asc|desc) Sort direction. Default: desc
+                                   (price + asc = low to high,
+                                    price + desc = high to low)
 
     Endpoint:
         GET /api/method/true_med.api.item.get_item_list.get_item_list
@@ -154,7 +161,7 @@ def get_item_list(
     sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "modified"
     sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
     fields = _get_existing_item_fields()
-    if sort_by not in fields:
+    if sort_by != "price" and sort_by not in fields:
         sort_by = "modified"
 
     ff_parsed = normalize_field_filters_json(field_filters)
@@ -240,18 +247,30 @@ def get_item_list(
         search_fields=search_fields,
         list_fields=fields,
     )
-    order_by = f"`tabItem`.`{sort_by}` {sort_order}"
+    if sort_by == "price":
+        data, pagination = _paginate_by_price(
+            fields=fields,
+            filters=filters,
+            or_filters=or_filters,
+            sort_order=sort_order,
+            price_min=price_min,
+            price_max=price_max,
+            page=cint(page),
+            page_length=cint(page_length),
+        )
+    else:
+        order_by = f"`tabItem`.`{sort_by}` {sort_order}"
 
-    data, pagination = paginate(
-        doctype="Item",
-        fields=fields,
-        filters=filters,
-        or_filters=or_filters,
-        order_by=order_by,
-        page=cint(page),
-        page_length=cint(page_length),
-        ignore_permissions=True,
-    )
+        data, pagination = paginate(
+            doctype="Item",
+            fields=fields,
+            filters=filters,
+            or_filters=or_filters,
+            order_by=order_by,
+            page=cint(page),
+            page_length=cint(page_length),
+            ignore_permissions=True,
+        )
 
     _attach_prices(data)
     _attach_rating(data)
@@ -382,6 +401,101 @@ def _item_names_matching_selling_price_range(
         WHERE {" AND ".join(conditions)}
     """
     return frappe.db.sql(sql, tuple(params), pluck=True)
+
+
+def _paginate_by_price(
+    fields: list,
+    filters: dict,
+    or_filters: list,
+    sort_order: str,
+    price_min=None,
+    price_max=None,
+    page: int = 1,
+    page_length: int = 20,
+) -> tuple[list, dict]:
+    """
+    Paginate items ordered by their lowest selling Item Price.
+
+    Frappe's get_list rejects sub-queries in ORDER BY, so the full set of
+    matching names is fetched first, sorted in Python by price, and only the
+    requested page is loaded with all list fields. Items without a selling
+    price are always placed last. Ties fall back to item_name.
+    """
+    page = max(1, cint(page))
+    page_length = min(max(1, cint(page_length)), MAX_PAGE_LENGTH)
+
+    candidates = frappe.get_list(
+        "Item",
+        fields=["name", "item_name"],
+        filters=filters,
+        or_filters=or_filters or [],
+        limit_page_length=0,
+        ignore_permissions=True,
+    )
+    if not candidates:
+        return [], get_pagination_meta(0, page, page_length)
+
+    min_prices = _min_selling_price_by_item(
+        [row["name"] for row in candidates],
+        price_min=price_min,
+        price_max=price_max,
+    )
+
+    reverse = sort_order == "desc"
+    priced = [row for row in candidates if row["name"] in min_prices]
+    unpriced = [row for row in candidates if row["name"] not in min_prices]
+    priced.sort(key=lambda row: (row.get("item_name") or "").lower())
+    priced.sort(key=lambda row: min_prices[row["name"]], reverse=reverse)
+    unpriced.sort(key=lambda row: (row.get("item_name") or "").lower())
+    ordered_names = [row["name"] for row in priced + unpriced]
+
+    start = (page - 1) * page_length
+    page_names = ordered_names[start : start + page_length]
+
+    data = []
+    if page_names:
+        rows = frappe.get_list(
+            "Item",
+            fields=fields,
+            filters={"name": ["in", page_names]},
+            limit_page_length=0,
+            ignore_permissions=True,
+        )
+        position = {name: idx for idx, name in enumerate(page_names)}
+        data = sorted(rows, key=lambda row: position[row["name"]])
+
+    return data, get_pagination_meta(len(ordered_names), page, page_length)
+
+
+def _min_selling_price_by_item(item_codes: list, price_min=None, price_max=None) -> dict:
+    """
+    Return {item_code: lowest selling price_list_rate}. When a price range is
+    given, only prices inside it are considered so the sort key matches the
+    price that made the item pass the price filter.
+    """
+    if not item_codes:
+        return {}
+
+    conditions = ["selling = 1", f"item_code IN ({', '.join(['%s'] * len(item_codes))})"]
+    params = list(item_codes)
+    if price_min is not None:
+        conditions.append("price_list_rate >= %s")
+        params.append(flt(price_min))
+    if price_max is not None:
+        conditions.append("price_list_rate <= %s")
+        params.append(flt(price_max))
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT item_code, MIN(price_list_rate) AS min_price
+        FROM `tabItem Price`
+        WHERE {" AND ".join(conditions)}
+        GROUP BY item_code
+        """,
+        tuple(params),
+        as_dict=True,
+    )
+    return {row["item_code"]: flt(row["min_price"]) for row in rows}
 
 
 def _item_names_matching_min_rating(average_rating) -> list[str] | None:
