@@ -18,6 +18,8 @@ BLOG_LIST_FIELDS = [
     "name",
     "title",
     "published_on",
+    "published",
+    "custom_priority",
     "custom_brand",
     "published",
     "blog_category",
@@ -38,6 +40,7 @@ BLOG_LIST_FIELDS = [
 ALLOWED_SORT_FIELDS = {
     "title",
     "published_on",
+    "published",
     "modified",
     "creation",
     "read_time",
@@ -45,9 +48,12 @@ ALLOWED_SORT_FIELDS = {
     "blogger",
 }
 
+# `published` is forced to 1 for this public endpoint; it must never be
+# accepted as a client-supplied filter (query string or JSON field_filters).
 _BLOG_POST_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset(
     {"blog_category", "blogger", "featured", "published"}
 )
+_BLOG_POST_FORBIDDEN_FILTERS = frozenset({"published"})
 
 
 @frappe.whitelist(allow_guest=True)
@@ -57,7 +63,6 @@ def get_blog_post_list(
     blog_category: str = None,
     blogger: str = None,
     featured: int = None,
-    published: int = 1,
     search: str = None,
     field_filters: str = None,
     sort_by: str = "published_on",
@@ -66,8 +71,11 @@ def get_blog_post_list(
     """
     Public API — paginated blog post list with filters.
 
-    Only published posts are returned by default. Results are cached in Redis
-    and automatically invalidated when Blog Posts change.
+    Only published posts are ever returned: `published` is forced to 1 and
+    cannot be overridden by the caller (query string or `field_filters`).
+    Posts with `custom_priority` set are pinned to the top, ordered by priority
+    ascending (1, 2, 3, …); the remaining posts follow by the chosen sort.
+    Results are cached in Redis and invalidated when Blog Posts change.
 
     Query Parameters:
         page          (int)      Page number, 1-based. Default: 1
@@ -75,7 +83,6 @@ def get_blog_post_list(
         blog_category (str)      Filter by blog category name
         blogger       (str)      Filter by blogger name
         featured      (0|1)      Filter featured posts only
-        published     (0|1)      Filter published posts (default 1)
         search        (str)      Partial match on title or blog_intro
         field_filters (str)      JSON AND filters; overrides same key from query string
         Other query keys in BLOG_LIST_FIELDS apply as exact AND filters.
@@ -101,7 +108,6 @@ def get_blog_post_list(
         blog_category=blog_category,
         blogger=blogger,
         featured=featured,
-        published=published,
         search=search,
         field_filters=ff_json,
         query_field_filters=query_ff,
@@ -117,22 +123,23 @@ def get_blog_post_list(
         blog_category=blog_category,
         blogger=blogger,
         featured=featured,
-        published=published,
     )
     merge_doctype_field_filters(
         filters,
         query_ff,
         doctype="Blog Post",
         allowed_fields=frozenset(BLOG_LIST_FIELDS),
+        forbidden_fields=_BLOG_POST_FORBIDDEN_FILTERS,
     )
     merge_doctype_field_filters(
         filters,
         ff_json,
         doctype="Blog Post",
         allowed_fields=frozenset(BLOG_LIST_FIELDS),
+        forbidden_fields=_BLOG_POST_FORBIDDEN_FILTERS,
     )
     or_filters = _build_search_filters(search)
-    order_by = f"`tabBlog Post`.`{sort_by}` {sort_order}"
+    order_by = _build_order_by(sort_by, sort_order)
 
     data, pagination = paginate(
         doctype="Blog Post",
@@ -162,11 +169,9 @@ def _build_filters(
     blog_category=None,
     blogger=None,
     featured=None,
-    published=1,
 ) -> dict:
-    filters = {}
-
-    filters["published"] = cint(published) if published is not None else 1
+    # Public endpoint: only published posts are ever exposed. Not caller-controlled.
+    filters = {"published": 1}
 
     if blog_category:
         filters["blog_category"] = blog_category
@@ -178,6 +183,28 @@ def _build_filters(
         filters["featured"] = cint(featured)
 
     return filters
+
+
+def _build_order_by(sort_by: str, sort_order: str) -> str:
+    """
+    Pin prioritized posts to the top, then apply the requested sort.
+
+    `custom_priority` is a unique text field holding a position number. Posts
+    with a value are listed first, ordered by that number ascending (1, 2, 3,
+    …); posts without one (NULL / empty) follow, ordered by ``sort_by``. The
+    ordering is global, so the pinning is preserved across paginated pages.
+
+    Only identifiers from the validated ``ALLOWED_SORT_FIELDS`` whitelist and
+    the literal ``asc``/``desc`` reach the SQL, so this is not injectable.
+    """
+    priority_col = "`tabBlog Post`.`custom_priority`"
+    return (
+        # non-prioritized posts (NULL/empty) sort after prioritized ones
+        f"NULLIF({priority_col}, '') IS NULL ASC, "
+        # numeric priority so "10" sorts after "2", not lexically before it
+        f"CAST({priority_col} AS UNSIGNED) ASC, "
+        f"`tabBlog Post`.`{sort_by}` {sort_order}"
+    )
 
 
 def _build_search_filters(search: str | None) -> list:
