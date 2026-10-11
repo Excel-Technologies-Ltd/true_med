@@ -61,6 +61,13 @@ def get_item_group(item_group: str = None) -> dict:
             frappe.DoesNotExistError,
         )
 
+    # Public endpoint: hide groups that are not published to the website.
+    if not frappe.db.get_value("Item Group", item_group, "show_in_website"):
+        frappe.throw(
+            _("Item Group {0} not found").format(item_group),
+            frappe.DoesNotExistError,
+        )
+
     data = _get_item_group_data(item_group)
     data["breadcrumbs"] = _get_breadcrumbs(item_group)
     data["children"] = _get_children(item_group)
@@ -150,7 +157,7 @@ def _get_children(item_group: str) -> list:
     """Return direct children of this group with their own children count."""
     children = frappe.get_all(
         "Item Group",
-        filters={"parent_item_group": item_group},
+        filters={"parent_item_group": item_group, "show_in_website": 1},
         fields=[
             "name",
             "item_group_name",

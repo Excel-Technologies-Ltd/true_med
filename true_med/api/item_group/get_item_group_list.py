@@ -15,6 +15,7 @@ ITEM_GROUP_FIELDS = [
     "item_group_name",
     "parent_item_group",
     "custom_brand",
+    "custom_priority",
     "custom_meta_title",
     "custom_meta_description",
     "custom_description",
@@ -38,9 +39,12 @@ ALLOWED_SORT_FIELDS = {
     "creation",
 }
 
+# `show_in_website` is forced to 1 for this public endpoint; it must never be
+# accepted as a client-supplied filter (query string or JSON field_filters).
 _ITEM_GROUP_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset(
     {"parent_item_group", "is_group", "show_in_website"}
 )
+_ITEM_GROUP_FORBIDDEN_FILTERS = frozenset({"show_in_website"})
 
 
 
@@ -75,20 +79,26 @@ def get_item_group_list(
         query_ff,
         doctype="Item Group",
         allowed_fields=frozenset(ITEM_GROUP_FIELDS),
+        forbidden_fields=_ITEM_GROUP_FORBIDDEN_FILTERS,
     )
     merge_doctype_field_filters(
         filters,
         ff_json,
         doctype="Item Group",
         allowed_fields=frozenset(ITEM_GROUP_FIELDS),
+        forbidden_fields=_ITEM_GROUP_FORBIDDEN_FILTERS,
     )
-    
+
+    # Public endpoint: only website-visible groups are ever exposed. Forced last
+    # so no client filter (query string or field_filters) can override it.
+    filters["show_in_website"] = 1
+
     fields = _get_existing_item_group_fields()
     if sort_by not in fields:
         sort_by = "lft"
 
     or_filters = _build_search_filters(search)
-    order_by = f"`tabItem Group`.`{sort_by}` {sort_order}"
+    order_by = _build_order_by(sort_by, sort_order, has_priority="custom_priority" in fields)
 
     data, pagination = paginate(
         doctype="Item Group",
@@ -145,6 +155,35 @@ def _build_filters(kwargs_dict: dict) -> dict:
                 filters[field] = kwargs_dict[field]
 
     return filters
+
+def _build_order_by(sort_by: str, sort_order: str, has_priority: bool = True) -> str:
+    """
+    Pin prioritized groups to the top, then apply the requested sort.
+
+    `custom_priority` is a unique text field holding a position number. Groups
+    with a value are listed first, ordered by that number ascending (1, 2, 3,
+    …); groups without one (NULL / empty) follow, ordered by ``sort_by``. The
+    ordering is global, so the pinning is preserved across paginated pages.
+
+    ``has_priority`` guards against environments where the custom field has not
+    been migrated yet, so we never reference a missing column.
+
+    Only identifiers from the validated sort whitelist and the literal
+    ``asc``/``desc`` reach the SQL, so this is not injectable.
+    """
+    base = f"`tabItem Group`.`{sort_by}` {sort_order}"
+    if not has_priority:
+        return base
+
+    priority_col = "`tabItem Group`.`custom_priority`"
+    return (
+        # non-prioritized groups (NULL/empty) sort after prioritized ones
+        f"NULLIF({priority_col}, '') IS NULL ASC, "
+        # numeric priority so "10" sorts after "2", not lexically before it
+        f"CAST({priority_col} AS UNSIGNED) ASC, "
+        f"{base}"
+    )
+
 
 def _build_search_filters(search: str | None) -> list:
     if not search:

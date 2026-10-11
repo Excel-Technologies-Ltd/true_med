@@ -2257,22 +2257,6 @@
  },
  {
   "default_value": null,
-  "doc_type": "Item Group",
-  "docstatus": 0,
-  "doctype": "Property Setter",
-  "doctype_or_field": "DocType",
-  "field_name": null,
-  "is_system_generated": 0,
-  "modified": "2026-05-17 22:40:20.693467",
-  "module": null,
-  "name": "Item Group-main-field_order",
-  "property": "field_order",
-  "property_type": "Data",
-  "row_name": null,
-  "value": "[\"gs\", \"item_group_name\", \"custom_brand\", \"parent_item_group\", \"is_group\", \"image\", \"column_break_5\", \"defaults\", \"item_group_defaults\", \"custom_seo\", \"custom_meta_title\", \"custom_meta_description\", \"custom_description\", \"custom_keywords\", null, \"sec_break_taxes\", \"taxes\", \"sb9\", \"route\", \"website_title\", \"description\", \"show_in_website\", \"include_descendants\", \"column_break_16\", \"weightage\", \"slideshow\", \"website_specifications\", \"website_filters_section\", \"filter_fields\", \"filter_attributes\", \"lft\", \"rgt\", \"old_parent\"]"
- },
- {
-  "default_value": null,
   "doc_type": "Brand",
   "docstatus": 0,
   "doctype": "Property Setter",
@@ -2382,5 +2366,37 @@
   "property_type": "Data",
   "row_name": null,
   "value": "[\"title\", \"blog_category\", \"blogger\", \"route\", \"read_time\", \"column_break_3\", \"published_on\", \"custom_brand\", \"published\", \"custom_priority\", \"featured\", \"hide_cta\", \"enable_email_notification\", \"disable_comments\", \"disable_likes\", \"section_break_5\", \"blog_intro\", \"content_type\", \"content\", \"content_md\", \"content_html\", \"email_sent\", \"meta_tags\", \"meta_title\", \"meta_description\", \"column_break_18\", \"meta_image\", \"section_break_20\", \"google_preview\"]"
+ },
+ {
+  "default_value": null,
+  "doc_type": "Item Group",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "show_in_website",
+  "is_system_generated": 0,
+  "modified": "2026-10-10 21:28:44.461526",
+  "module": null,
+  "name": "Item Group-show_in_website-default",
+  "property": "default",
+  "property_type": "Text",
+  "row_name": null,
+  "value": "1"
+ },
+ {
+  "default_value": null,
+  "doc_type": "Item Group",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocType",
+  "field_name": null,
+  "is_system_generated": 0,
+  "modified": "2026-10-10 21:34:30.772262",
+  "module": null,
+  "name": "Item Group-main-field_order",
+  "property": "field_order",
+  "property_type": "Text",
+  "row_name": null,
+  "value": "[\"gs\", \"item_group_name\", \"custom_brand\", \"parent_item_group\", \"is_group\", \"image\", \"column_break_5\", \"show_in_website\", \"custom_priority\", \"defaults\", \"item_group_defaults\", \"custom_seo\", \"custom_meta_title\", \"custom_meta_description\", \"custom_description\", \"custom_keywords\", \"custom_faq\", \"sec_break_taxes\", \"taxes\", \"sb9\", \"route\", \"website_title\", \"description\", \"include_descendants\", \"column_break_16\", \"weightage\", \"slideshow\", \"website_specifications\", \"website_filters_section\", \"filter_fields\", \"filter_attributes\", \"lft\", \"rgt\", \"old_parent\"]"
  }
 ]
