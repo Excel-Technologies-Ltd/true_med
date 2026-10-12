@@ -9,6 +9,8 @@
  "engine": "InnoDB",
  "field_order": [
   "moment_name",
+  "publish_to_website",
+  "priority",
   "feature_image"
  ],
  "fields": [
@@ -21,6 +23,20 @@
    "in_standard_filter": 1,
    "label": "Moment Name",
    "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "publish_to_website",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Publish to Website"
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Data",
+   "label": "Priority",
    "unique": 1
   },
   {

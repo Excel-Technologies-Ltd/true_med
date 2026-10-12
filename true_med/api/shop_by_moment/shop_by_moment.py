@@ -31,6 +31,13 @@ def get_shop_by_moment(name: str = None) -> dict:
     if not frappe.db.exists("Shop by Moment", name):
         frappe.throw(_("Shop by Moment {0} not found").format(name), frappe.DoesNotExistError)
 
+    # Public endpoint: hide moments that are not published to the website.
+    meta = frappe.get_meta("Shop by Moment")
+    if meta.get_field("publish_to_website") and not frappe.db.get_value(
+        "Shop by Moment", name, "publish_to_website"
+    ):
+        frappe.throw(_("Shop by Moment {0} not found").format(name), frappe.DoesNotExistError)
+
     cache_key = sbm_cache.shop_by_moment_detail_key(name)
     cached = sbm_cache.get(cache_key)
     if cached:
@@ -50,7 +57,21 @@ def get_shop_by_moment(name: str = None) -> dict:
 
 
 def _get_shop_by_moment_data(name: str) -> dict:
-    fields = ["name", "moment_name", "feature_image", "creation", "modified"]
+    candidate_fields = [
+        "name",
+        "moment_name",
+        "feature_image",
+        "priority",
+        "publish_to_website",
+        "creation",
+        "modified",
+    ]
+    meta = frappe.get_meta("Shop by Moment")
+    fields = [
+        f
+        for f in candidate_fields
+        if f in ("name", "creation", "modified") or meta.get_field(f)
+    ]
     doc = frappe.db.get_value("Shop by Moment", name, fields, as_dict=True)
     return dict(doc)
 

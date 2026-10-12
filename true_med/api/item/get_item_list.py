@@ -576,13 +576,14 @@ def _attach_variant_prices(items: list) -> None:
     variants = frappe.get_all(
         "Item",
         filters={"variant_of": ["in", template_codes]},
-        fields=["name", "variant_of"],
+        fields=["name", "variant_of", "standard_rate"],
         ignore_permissions=True,
     )
     if not variants:
         return
 
     template_by_variant = {row["name"]: row["variant_of"] for row in variants}
+    standard_rate_by_variant = {row["name"]: row.get("standard_rate") for row in variants}
 
     all_prices = frappe.get_all(
         "Item Price",
@@ -604,7 +605,13 @@ def _attach_variant_prices(items: list) -> None:
     for item in items:
         best = lowest_by_template.get(item["item_code"])
         if best is not None:
+            # Actual price: the lowest variant's selling Item Price.
             item["prices"] = [best]
+            # Standard selling price: mirror item-detail logic by surfacing the
+            # standard_rate of the same variant whose actual price we show.
+            variant_standard_rate = standard_rate_by_variant.get(best["item_code"])
+            if variant_standard_rate:
+                item["standard_rate"] = variant_standard_rate
 
 
 def _is_lower_price(candidate: dict, current: dict) -> bool:
@@ -623,14 +630,33 @@ def _is_lower_price(candidate: dict, current: dict) -> bool:
 def _attach_rating(items: list) -> None:
     """
     Attach average_rating and rating_count to each item from approved Item Reviews.
-    Uses a single bulk SQL query to avoid N+1.
+
+    Standalone items are rated from their own reviews. Template items
+    (has_variants) carry no reviews of their own — reviews are written against
+    the purchasable variant codes — so their rating is combined from their
+    variants' approved reviews only. Uses at most two bulk queries (no N+1).
     """
     if not items:
         return
 
-    item_codes = [item["item_code"] for item in items]
-    placeholders = ", ".join(["%s"] * len(item_codes))
+    standalone_codes = [item["item_code"] for item in items if not item.get("has_variants")]
+    template_codes = [item["item_code"] for item in items if item.get("has_variants")]
 
+    rating_by_item = {}
+    if standalone_codes:
+        rating_by_item.update(_rating_by_code(standalone_codes))
+    if template_codes:
+        rating_by_item.update(_rating_by_template_variants(template_codes))
+
+    for item in items:
+        info = rating_by_item.get(item["item_code"])
+        item["average_rating"] = round(flt(info["average_rating"]), 2) if info else 0.0
+        item["rating_count"] = info["rating_count"] if info else 0
+
+
+def _rating_by_code(item_codes: list) -> dict:
+    """Aggregate approved reviews grouped by item_code → {item_code: row}."""
+    placeholders = ", ".join(["%s"] * len(item_codes))
     rows = frappe.db.sql(
         f"""
         SELECT item_code, AVG(rating) AS average_rating, COUNT(*) AS rating_count
@@ -642,13 +668,31 @@ def _attach_rating(items: list) -> None:
         tuple(item_codes),
         as_dict=True,
     )
+    return {row["item_code"]: row for row in rows}
 
-    rating_by_item = {row["item_code"]: row for row in rows}
 
-    for item in items:
-        info = rating_by_item.get(item["item_code"])
-        item["average_rating"] = round(flt(info["average_rating"]), 2) if info else 0.0
-        item["rating_count"] = info["rating_count"] if info else 0
+def _rating_by_template_variants(template_codes: list) -> dict:
+    """
+    Aggregate approved reviews of each template's variants, keyed by the parent
+    template item_code → {template: row}. Reviews written directly on the
+    template are ignored; ratings follow the purchasable variant items.
+    """
+    placeholders = ", ".join(["%s"] * len(template_codes))
+    rows = frappe.db.sql(
+        f"""
+        SELECT v.variant_of AS item_code,
+               AVG(r.rating) AS average_rating,
+               COUNT(*)      AS rating_count
+        FROM `tabItem Review` r
+        INNER JOIN `tabItem` v ON v.name = r.item_code
+        WHERE v.variant_of IN ({placeholders})
+          AND r.status = 'Approved'
+        GROUP BY v.variant_of
+        """,
+        tuple(template_codes),
+        as_dict=True,
+    )
+    return {row["item_code"]: row for row in rows}
 
 
 def _attach_custom_images(items: list) -> None:

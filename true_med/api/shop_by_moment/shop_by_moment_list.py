@@ -14,6 +14,8 @@ SHOP_BY_MOMENT_LIST_FIELDS = [
     "name",
     "moment_name",
     "feature_image",
+    "priority",
+    "publish_to_website",
     "modified",
     "creation",
 ]
@@ -25,7 +27,10 @@ ALLOWED_SORT_FIELDS = {
     "creation",
 }
 
-_RESERVED = BASE_LIST_API_RESERVED_KEYS
+# `publish_to_website` is forced to 1 for this public endpoint; it must never be
+# accepted as a client-supplied filter (query string or JSON field_filters).
+_RESERVED = BASE_LIST_API_RESERVED_KEYS | frozenset({"publish_to_website"})
+_FORBIDDEN_FILTERS = frozenset({"publish_to_website"})
 
 
 @frappe.whitelist(allow_guest=True)
@@ -81,20 +86,29 @@ def get_shop_by_moment_list(
         query_ff,
         doctype="Shop by Moment",
         allowed_fields=frozenset(SHOP_BY_MOMENT_LIST_FIELDS),
+        forbidden_fields=_FORBIDDEN_FILTERS,
     )
     merge_doctype_field_filters(
         filters,
         ff_parsed,
         doctype="Shop by Moment",
         allowed_fields=frozenset(SHOP_BY_MOMENT_LIST_FIELDS),
+        forbidden_fields=_FORBIDDEN_FILTERS,
     )
 
+    fields = _get_existing_shop_by_moment_fields()
+
+    # Public endpoint: only website-published moments are ever exposed. Forced
+    # last so no client filter (query string or field_filters) can override it.
+    if "publish_to_website" in fields:
+        filters["publish_to_website"] = 1
+
     or_filters = _build_search_filters(search)
-    order_by = f"`tabShop by Moment`.`{sort_by}` {sort_order}"
+    order_by = _build_order_by(sort_by, sort_order, has_priority="priority" in fields)
 
     data, pagination = paginate(
         doctype="Shop by Moment",
-        fields=SHOP_BY_MOMENT_LIST_FIELDS,
+        fields=fields,
         filters=filters,
         or_filters=or_filters,
         order_by=order_by,
@@ -113,6 +127,52 @@ def get_shop_by_moment_list(
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+
+def _get_existing_shop_by_moment_fields() -> list:
+    """
+    Return only DB-backed Shop by Moment fields so the endpoint keeps working
+    in environments where `priority` / `publish_to_website` have not been
+    migrated yet.
+    """
+    meta = frappe.get_meta("Shop by Moment")
+    existing = []
+    for field in SHOP_BY_MOMENT_LIST_FIELDS:
+        if field in ("name", "modified", "creation"):
+            existing.append(field)
+            continue
+        field_meta = meta.get_field(field)
+        if not field_meta:
+            continue
+        if field_meta.fieldtype in ("Table", "Table MultiSelect"):
+            continue
+        existing.append(field)
+    return existing
+
+
+def _build_order_by(sort_by: str, sort_order: str, has_priority: bool = True) -> str:
+    """
+    Pin prioritized moments to the top, then apply the requested sort.
+
+    `priority` is a unique text field holding a position number. Moments with a
+    value are listed first, ordered by that number ascending (1, 2, 3, …);
+    moments without one (NULL / empty) follow, ordered by ``sort_by``. The
+    ordering is global, so pinning is preserved across paginated pages.
+
+    ``has_priority`` guards against environments where the field has not been
+    migrated yet, so we never reference a missing column. Only whitelisted sort
+    identifiers and the literal asc/desc reach the SQL, so this is not injectable.
+    """
+    base = f"`tabShop by Moment`.`{sort_by}` {sort_order}"
+    if not has_priority:
+        return base
+
+    priority_col = "`tabShop by Moment`.`priority`"
+    return (
+        f"NULLIF({priority_col}, '') IS NULL ASC, "
+        f"CAST({priority_col} AS UNSIGNED) ASC, "
+        f"{base}"
+    )
 
 
 def _build_search_filters(search: str | None) -> list:
