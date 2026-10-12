@@ -273,6 +273,7 @@ def get_item_list(
         )
 
     _attach_prices(data)
+    _attach_variant_prices(data)
     _attach_rating(data)
     _attach_custom_images(data)
     _attach_custom_key_benefits(data)
@@ -548,6 +549,75 @@ def _attach_prices(items: list) -> None:
 
     for item in items:
         item["prices"] = prices_by_item.get(item["item_code"], [])
+
+
+def _attach_variant_prices(items: list) -> None:
+    """
+    Template items (has_variants = 1) carry no Item Price of their own — the
+    prices live on their variant items. For every such template still lacking a
+    price after ``_attach_prices``, attach the single lowest variant price so
+    the list shows a "from" price instead of an empty ``prices`` list.
+
+    Selling prices are preferred when present (that is the price a customer
+    sees); otherwise the lowest of whatever prices exist is used. Done in two
+    bulk queries regardless of how many templates/variants are on the page.
+    """
+    if not items:
+        return
+
+    template_codes = [
+        item["item_code"]
+        for item in items
+        if item.get("has_variants") and not item.get("prices")
+    ]
+    if not template_codes:
+        return
+
+    variants = frappe.get_all(
+        "Item",
+        filters={"variant_of": ["in", template_codes]},
+        fields=["name", "variant_of"],
+        ignore_permissions=True,
+    )
+    if not variants:
+        return
+
+    template_by_variant = {row["name"]: row["variant_of"] for row in variants}
+
+    all_prices = frappe.get_all(
+        "Item Price",
+        filters={"item_code": ["in", list(template_by_variant.keys())]},
+        fields=ITEM_PRICE_FIELDS,
+        ignore_permissions=True,
+    )
+
+    # Pick the lowest price per template, preferring selling prices.
+    lowest_by_template = {}
+    for price in all_prices:
+        template = template_by_variant.get(price["item_code"])
+        if not template:
+            continue
+        current = lowest_by_template.get(template)
+        if current is None or _is_lower_price(price, current):
+            lowest_by_template[template] = price
+
+    for item in items:
+        best = lowest_by_template.get(item["item_code"])
+        if best is not None:
+            item["prices"] = [best]
+
+
+def _is_lower_price(candidate: dict, current: dict) -> bool:
+    """
+    Return True if ``candidate`` should replace ``current`` as the lowest price.
+    A selling price always beats a non-selling one; within the same selling
+    flag, the smaller ``price_list_rate`` wins.
+    """
+    cand_selling = 1 if candidate.get("selling") else 0
+    curr_selling = 1 if current.get("selling") else 0
+    if cand_selling != curr_selling:
+        return cand_selling > curr_selling
+    return flt(candidate.get("price_list_rate")) < flt(current.get("price_list_rate"))
 
 
 def _attach_rating(items: list) -> None:
