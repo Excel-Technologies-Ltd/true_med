@@ -78,37 +78,7 @@ def get_item_review_list(
         filters['item_code'] = resolved_item
         
     # 2. Dynamically apply kwargs to filters
-    for field in REVIEW_LIST_FIELDS:
-        if field in kwargs and field not in _REVIEW_FORBIDDEN:
-            val = kwargs[field]
-            if val not in (None, ""):
-                # Safely cast rating to float, treat the rest as strings
-                if field == "rating":
-                    filters[field] = float(val)
-                else:
-                    filters[field] = val
-
-    query_ff = get_query_field_filters(
-        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
-        reserved_keys=_REVIEW_RESERVED,
-        forbidden_fields=_REVIEW_FORBIDDEN,
-    )
-    ff_json = normalize_field_filters_json(field_filters)
-    
-    merge_doctype_field_filters(
-        filters,
-        query_ff,
-        doctype="Item Review",
-        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
-        forbidden_fields=_REVIEW_FORBIDDEN,
-    )
-    merge_doctype_field_filters(
-        filters,
-        ff_json,
-        doctype="Item Review",
-        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
-        forbidden_fields=_REVIEW_FORBIDDEN,
-    )
+    _apply_request_filters(filters, kwargs, field_filters)
 
     filters['status'] = APPROVED_REVIEW_STATUS
 
@@ -146,6 +116,102 @@ def get_item_review_list(
     }
 
 @frappe.whitelist(allow_guest=True)
+def get_combined_item_review_list(
+    item_code: str = None,
+    page: int = 1,
+    page_length: int = 20,
+    field_filters: str = None,
+    sort_by: str = "creation",
+    sort_order: str = "desc",
+    **kwargs
+) -> dict:
+    """
+    Public API — paginated approved reviews combined across a variant family.
+
+    ``item_code`` may be a template, a variant, or a standalone item:
+      - template  → reviews of the template and all of its variants
+      - variant   → reviews of its template and all sibling variants
+      - standalone → reviews of that item only
+
+    Each review keeps its own ``item_code`` / ``item_name`` so the client can
+    tell which variant it was written for. ``summary`` is computed over the
+    whole family. Supports the same filters, sorting and pagination as
+    ``get_item_review_list``.
+
+    Endpoint:
+        GET /api/method/true_med.api.item_review.item_review_list.get_combined_item_review_list?item_code=ITEM-001
+    """
+    resolved_item = get_list_request_value('item_code') or item_code
+    resolved_item = str(resolved_item).strip() if resolved_item else ''
+    if not resolved_item:
+        frappe.throw(_("item_code is required"), frappe.MandatoryError)
+
+    item = frappe.db.get_value(
+        'Item', resolved_item, ['name', 'has_variants', 'variant_of'], as_dict=True
+    )
+    if not item:
+        frappe.throw(_('Item {0} not found').format(resolved_item), frappe.DoesNotExistError)
+
+    template_code = item.variant_of or (item.name if item.has_variants else None)
+    if template_code:
+        item_codes = [template_code] + frappe.get_all(
+            'Item',
+            filters={'variant_of': template_code},
+            pluck='name',
+            ignore_permissions=True,
+        )
+    else:
+        item_codes = [item.name]
+
+    raw_page = get_list_request_value('page')
+    raw_pl = get_list_request_value('page_length')
+    page = max(1, cint(raw_page if raw_page not in (None, '') else page))
+    page_length = cint(raw_pl if raw_pl not in (None, '') else page_length)
+
+    sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "creation"
+    sort_order = "asc" if str(sort_order).lower() == "asc" else "desc"
+
+    filters = {'item_code': ['in', item_codes]}
+    _apply_request_filters(filters, kwargs, field_filters)
+    filters['status'] = APPROVED_REVIEW_STATUS
+
+    data, pagination = paginate(
+        doctype="Item Review",
+        fields=REVIEW_LIST_FIELDS,
+        filters=filters,
+        order_by=f"`tabItem Review`.`{sort_by}` {sort_order}",
+        page=page,
+        page_length=page_length,
+        ignore_permissions=True,
+    )
+
+    _attach_review_images(data)
+
+    for row in data:
+        row.pop("customer", None)
+        row.pop("sales_invoice", None)
+
+    summary_brand = filters.get('brand')
+    if not isinstance(summary_brand, str):
+        summary_brand = None
+
+    summary = _get_rating_summary(
+        item_codes=item_codes,
+        status=APPROVED_REVIEW_STATUS,
+        brand=summary_brand,
+    )
+    summary['item_code'] = item.name
+    summary['template'] = template_code
+    summary['item_codes'] = item_codes
+
+    return {
+        "data": data,
+        "pagination": pagination,
+        "summary": summary,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
 def get_item_rating_summary(item_code: str) -> dict:
     """
     Public API — lightweight rating summary for an item without full review list.
@@ -170,16 +236,51 @@ def get_item_rating_summary(item_code: str) -> dict:
 # helpers
 # ---------------------------------------------------------------------------
 
+def _apply_request_filters(filters: dict, kwargs: dict, field_filters: str = None) -> None:
+    """Merge allowed review field filters from kwargs, query string and JSON."""
+    for field in REVIEW_LIST_FIELDS:
+        if field in kwargs and field not in _REVIEW_FORBIDDEN:
+            val = kwargs[field]
+            if val not in (None, ""):
+                # Safely cast rating to float, treat the rest as strings
+                if field == "rating":
+                    filters[field] = float(val)
+                else:
+                    filters[field] = val
+
+    query_ff = get_query_field_filters(
+        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
+        reserved_keys=_REVIEW_RESERVED,
+        forbidden_fields=_REVIEW_FORBIDDEN,
+    )
+    ff_json = normalize_field_filters_json(field_filters)
+
+    merge_doctype_field_filters(
+        filters,
+        query_ff,
+        doctype="Item Review",
+        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
+        forbidden_fields=_REVIEW_FORBIDDEN,
+    )
+    merge_doctype_field_filters(
+        filters,
+        ff_json,
+        doctype="Item Review",
+        allowed_fields=frozenset(REVIEW_LIST_FIELDS),
+        forbidden_fields=_REVIEW_FORBIDDEN,
+    )
+
 def _get_rating_summary(
     item_code: str | None = None,
     status: str | None = None,
     brand: str | None = None,
+    item_codes: list | None = None,
 ) -> dict:
     """
     Compute average rating and per-star breakdown in a single SQL query.
 
-    Pass ``item_code`` to scope to one item; omit or pass None for all
-    reviews. Pass ``status`` to scope to a specific review status.
+    Pass ``item_code`` to scope to one item, or ``item_codes`` to scope to
+    several (e.g. a template and its variants); omit both for all reviews. Pass ``status`` to scope to a specific review status.
 
     Frappe's Rating fieldtype stores values as floats between 0 and 1
     (e.g. 0.6 = 3 stars on a 5-star scale). We multiply by 5 to get the
@@ -190,6 +291,9 @@ def _get_rating_summary(
     if item_code:
         conditions.append('item_code = %s')
         params.append(item_code)
+    if item_codes:
+        conditions.append('item_code IN ({})'.format(', '.join(['%s'] * len(item_codes))))
+        params.extend(item_codes)
     if status:
         conditions.append('status = %s')
         params.append(status)
