@@ -102,7 +102,7 @@ def get_my_invoice_list(
         )
         current_images = _get_current_item_images({row["item_code"] for row in rows})
         for row in rows:
-            row["image"] = current_images.get(row["item_code"]) or row.get("image") or ""
+            row["image"] = current_images.get(row["item_code"]) or ""
             items_by_invoice.setdefault(row["parent"], []).append({
                 k: v for k, v in row.items() if k != "parent"
             })
@@ -116,35 +116,19 @@ def get_my_invoice_list(
 def _get_current_item_images(item_codes: set) -> dict:
     """
     Return {item_code: image} from the live Item records, so orders always
-    show the item's current image rather than the one copied onto the invoice
-    row at sale time. Variants without their own image fall back to their
-    template's image. Uses at most two bulk queries.
+    show each item's own current image rather than the one copied onto the
+    invoice row at sale time. Items without an image map to None.
     """
     item_codes = [code for code in item_codes if code]
     if not item_codes:
         return {}
 
-    items = frappe.get_all(
-        "Item",
-        filters={"name": ["in", item_codes]},
-        fields=["name", "image", "variant_of"],
-        ignore_permissions=True,
-    )
-
-    template_codes = list({item["variant_of"] for item in items if not item["image"] and item["variant_of"]})
-    template_images = {}
-    if template_codes:
-        template_images = {
-            row["name"]: row["image"]
-            for row in frappe.get_all(
-                "Item",
-                filters={"name": ["in", template_codes]},
-                fields=["name", "image"],
-                ignore_permissions=True,
-            )
-        }
-
     return {
-        item["name"]: item["image"] or template_images.get(item["variant_of"])
-        for item in items
-    }    
+        row["name"]: row["image"]
+        for row in frappe.get_all(
+            "Item",
+            filters={"name": ["in", item_codes]},
+            fields=["name", "image"],
+            ignore_permissions=True,
+        )
+    }
