@@ -555,12 +555,16 @@ def _attach_variant_prices(items: list) -> None:
     """
     Template items (has_variants = 1) carry no Item Price of their own — the
     prices live on their variant items. For every such template still lacking a
-    price after ``_attach_prices``, attach the single lowest variant price so
-    the list shows a "from" price instead of an empty ``prices`` list.
+    price after ``_attach_prices``, pick the variant with the lowest price and
+    attach all of that variant's Item Price rows (every price list, e.g.
+    Standard Selling and Actual Selling Price) — the same set the item detail
+    endpoint shows per variant — so the list shows a "from" price instead of an
+    empty ``prices`` list.
 
-    Selling prices are preferred when present (that is the price a customer
-    sees); otherwise the lowest of whatever prices exist is used. Done in two
-    bulk queries regardless of how many templates/variants are on the page.
+    Selling prices are preferred when choosing the lowest variant (that is the
+    price a customer sees); otherwise the lowest of whatever prices exist is
+    used. Done in two bulk queries regardless of how many templates/variants
+    are on the page.
     """
     if not items:
         return
@@ -589,15 +593,18 @@ def _attach_variant_prices(items: list) -> None:
         "Item Price",
         filters={"item_code": ["in", list(template_by_variant.keys())]},
         fields=ITEM_PRICE_FIELDS,
+        order_by="selling desc, buying desc, price_list asc",
         ignore_permissions=True,
     )
 
     # Pick the lowest price per template, preferring selling prices.
     lowest_by_template = {}
+    prices_by_variant = {}
     for price in all_prices:
         template = template_by_variant.get(price["item_code"])
         if not template:
             continue
+        prices_by_variant.setdefault(price["item_code"], []).append(price)
         current = lowest_by_template.get(template)
         if current is None or _is_lower_price(price, current):
             lowest_by_template[template] = price
@@ -605,8 +612,8 @@ def _attach_variant_prices(items: list) -> None:
     for item in items:
         best = lowest_by_template.get(item["item_code"])
         if best is not None:
-            # Actual price: the lowest variant's selling Item Price.
-            item["prices"] = [best]
+            # All Item Price rows of the lowest-priced variant.
+            item["prices"] = prices_by_variant[best["item_code"]]
             # Standard selling price: mirror item-detail logic by surfacing the
             # standard_rate of the same variant whose actual price we show.
             variant_standard_rate = standard_rate_by_variant.get(best["item_code"])
