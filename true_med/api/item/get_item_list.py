@@ -525,6 +525,10 @@ def _item_names_matching_min_rating(average_rating) -> list[str] | None:
     Return item codes whose approved-review average is at least
     ``average_rating`` stars (1–5). Frappe's Rating fieldtype stores 0–1,
     so the stored average is scaled by 5 before comparing.
+
+    Template items are matched on the combined reviews of their variants
+    (reviews written directly on a template are ignored), the same rating
+    ``_attach_rating`` shows for them.
     """
     if average_rating is None or str(average_rating).strip() == "":
         return None
@@ -535,11 +539,13 @@ def _item_names_matching_min_rating(average_rating) -> list[str] | None:
 
     return frappe.db.sql(
         """
-        SELECT item_code
-        FROM `tabItem Review`
-        WHERE status = 'Approved'
-        GROUP BY item_code
-        HAVING ROUND(AVG(rating) * 5, 2) >= %s
+        SELECT IF(IFNULL(i.variant_of, '') = '', r.item_code, i.variant_of) AS item_code
+        FROM `tabItem Review` r
+        INNER JOIN `tabItem` i ON i.name = r.item_code
+        WHERE r.status = 'Approved'
+          AND IFNULL(i.has_variants, 0) = 0
+        GROUP BY 1
+        HAVING ROUND(AVG(r.rating) * 5, 2) >= %s
         """,
         (min_stars,),
         pluck=True,
