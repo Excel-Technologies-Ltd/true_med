@@ -146,6 +146,18 @@ def on_item_price_change(doc, method=None):
     _bust_item_selling_price_range_cache()
 
 
+def on_item_group_change(doc, method=None):
+    """
+    Item Group "Show in Website" decides which items are public, so bust every
+    item detail/list cache, the price range and brand lists (item counts).
+    Registered in hooks.py for Item Group on_update / on_trash.
+    """
+    frappe.cache().delete_keys(_ITEM_DETAIL_NS)
+    _bust_item_list_caches()
+    _bust_item_selling_price_range_cache()
+    _bust_brand_list_caches()
+
+
 def _bust_item_list_caches():
     """Delete all item list cache entries."""
     frappe.cache().delete_keys(_ITEM_LIST_NS)

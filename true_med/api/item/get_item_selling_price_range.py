@@ -2,12 +2,20 @@ import frappe
 
 from true_med.utils import cache as item_cache
 from true_med.utils.cache import ITEM_SELLING_PRICE_RANGE_CACHE_KEY
+from true_med.utils.item_visibility import visible_item_group_sql
 
 
-def _visible_item_conditions(alias_item: str = "i") -> str:
+def _visible_item_conditions(alias_item: str = "i", alias_template: str = "t") -> str:
+    """
+    Catalogue items: enabled top-level items, plus enabled variants of enabled
+    templates (template prices live on their variants). The top-level item's
+    Item Group must be shown on the website.
+    """
+    i, t = alias_item, alias_template
     return (
-        f"(IFNULL(`{alias_item}`.`variant_of`, '') = '') "
-        f"AND IFNULL(`{alias_item}`.`disabled`, 0) = 0"
+        f"IFNULL(`{i}`.`disabled`, 0) = 0 "
+        f"AND (IFNULL(`{i}`.`variant_of`, '') = '' OR IFNULL(`{t}`.`disabled`, 0) = 0) "
+        f"AND {visible_item_group_sql(f'COALESCE(`{t}`.`item_group`, `{i}`.`item_group`)')}"
     )
 
 
@@ -15,7 +23,8 @@ def _visible_item_conditions(alias_item: str = "i") -> str:
 def get_item_selling_price_range() -> dict:
     """
     Public API — min and max price_list_rate from Item Price rows where
-    selling = 1, scoped to catalogue items (non-variants, not disabled).
+    selling = 1, scoped to catalogue items (enabled top-level items and the
+    enabled variants of enabled templates, in Item Groups shown on the website).
 
     Response:
         {
@@ -46,6 +55,7 @@ def get_item_selling_price_range() -> dict:
             ) AS currency
         FROM `tabItem Price` ip
         INNER JOIN `tabItem` i ON i.name = ip.item_code
+        LEFT JOIN `tabItem` t ON t.name = i.variant_of
         WHERE ip.selling = 1
           AND {vis}
         """,

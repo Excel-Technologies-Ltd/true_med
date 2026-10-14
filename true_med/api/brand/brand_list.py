@@ -2,6 +2,7 @@ import frappe
 from frappe.utils import cint
 
 from true_med.utils import cache as brand_cache
+from true_med.utils.item_visibility import visible_item_group_sql
 from true_med.utils.list_query_filters import (
     BASE_LIST_API_RESERVED_KEYS,
     get_query_field_filters,
@@ -189,8 +190,12 @@ def _attach_item_count(brands: list) -> None:
         WHERE  brand IN ({placeholders})
           AND  disabled = 0
           AND  IFNULL(variant_of, '') = ''
+          AND  {visible_group}
         GROUP  BY brand
-        """.format(placeholders=", ".join(["%s"] * len(brand_names))),
+        """.format(
+            placeholders=", ".join(["%s"] * len(brand_names)),
+            visible_group=visible_item_group_sql("item_group"),
+        ),
         brand_names,
         as_dict=True,
     )

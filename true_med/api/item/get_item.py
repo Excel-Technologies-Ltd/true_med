@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils import flt
 
 from true_med.utils import cache as item_cache
+from true_med.utils.item_visibility import is_item_group_visible
 
 ITEM_PRICE_FIELDS = [
     "item_code",
@@ -124,6 +125,10 @@ def get_item(item_code: str) -> dict:
 
     resolved = _resolve_item_code(item_code)
     if not resolved:
+        frappe.throw(_("Item {0} not found").format(item_code), frappe.DoesNotExistError)
+
+    # Public endpoint: hide items whose Item Group is not shown on the website.
+    if not is_item_group_visible(frappe.db.get_value("Item", resolved, "item_group")):
         frappe.throw(_("Item {0} not found").format(item_code), frappe.DoesNotExistError)
 
     cache_key = item_cache.item_detail_key(resolved)

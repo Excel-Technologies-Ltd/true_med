@@ -2,6 +2,7 @@ import frappe
 from frappe.utils import cint, flt
 
 from true_med.utils import cache as item_cache
+from true_med.utils.item_visibility import exclude_hidden_item_groups
 from true_med.utils.list_query_filters import (
     BASE_LIST_API_RESERVED_KEYS,
     get_query_field_filters,
@@ -242,6 +243,8 @@ def get_item_list(
             return result
         filters["name"] = ["in", list(restricted_names)]
 
+    filters = exclude_hidden_item_groups(filters)
+
     or_filters = _build_search_filters(
         search=search,
         search_fields=search_fields,
@@ -273,7 +276,7 @@ def get_item_list(
         )
 
     _attach_prices(data)
-    _attach_variant_prices(data)
+    _attach_variant_prices(data, price_min=price_min, price_max=price_max)
     _attach_rating(data)
     _attach_custom_images(data)
     _attach_custom_key_benefits(data)
@@ -379,13 +382,21 @@ def _item_names_matching_selling_price_range(
     price_max,
     disabled: int,
 ) -> list[str] | None:
+    """
+    Return top-level item names that have a selling price inside the range.
+    Template items carry no prices of their own, so an enabled variant's price
+    counts towards its template (the template's own ``disabled`` flag is
+    checked by the main list filters).
+    """
     if price_min is None and price_max is None:
         return None
 
     conditions = [
         "ip.selling = 1",
-        "(IFNULL(i.variant_of, '') = '')",
-        "IFNULL(i.disabled, 0) = %s",
+        """(
+            (IFNULL(i.variant_of, '') = '' AND IFNULL(i.disabled, 0) = %s)
+            OR (IFNULL(i.variant_of, '') != '' AND IFNULL(i.disabled, 0) = 0)
+        )""",
     ]
     params = [disabled]
     if price_min is not None:
@@ -396,7 +407,7 @@ def _item_names_matching_selling_price_range(
         params.append(flt(price_max))
 
     sql = f"""
-        SELECT DISTINCT i.name
+        SELECT DISTINCT IF(IFNULL(i.variant_of, '') = '', i.name, i.variant_of)
         FROM `tabItem Price` ip
         INNER JOIN `tabItem` i ON i.name = ip.item_code
         WHERE {" AND ".join(conditions)}
@@ -472,26 +483,36 @@ def _min_selling_price_by_item(item_codes: list, price_min=None, price_max=None)
     """
     Return {item_code: lowest selling price_list_rate}. When a price range is
     given, only prices inside it are considered so the sort key matches the
-    price that made the item pass the price filter.
+    price that made the item pass the price filter. Template items take the
+    lowest price of their enabled variants.
     """
     if not item_codes:
         return {}
 
-    conditions = ["selling = 1", f"item_code IN ({', '.join(['%s'] * len(item_codes))})"]
-    params = list(item_codes)
+    placeholders = ", ".join(["%s"] * len(item_codes))
+    conditions = [
+        "ip.selling = 1",
+        f"""(
+            ip.item_code IN ({placeholders})
+            OR (i.variant_of IN ({placeholders}) AND IFNULL(i.disabled, 0) = 0)
+        )""",
+    ]
+    params = list(item_codes) + list(item_codes)
     if price_min is not None:
-        conditions.append("price_list_rate >= %s")
+        conditions.append("ip.price_list_rate >= %s")
         params.append(flt(price_min))
     if price_max is not None:
-        conditions.append("price_list_rate <= %s")
+        conditions.append("ip.price_list_rate <= %s")
         params.append(flt(price_max))
 
     rows = frappe.db.sql(
         f"""
-        SELECT item_code, MIN(price_list_rate) AS min_price
-        FROM `tabItem Price`
+        SELECT IF(IFNULL(i.variant_of, '') = '', i.name, i.variant_of) AS item_code,
+               MIN(ip.price_list_rate) AS min_price
+        FROM `tabItem Price` ip
+        INNER JOIN `tabItem` i ON i.name = ip.item_code
         WHERE {" AND ".join(conditions)}
-        GROUP BY item_code
+        GROUP BY 1
         """,
         tuple(params),
         as_dict=True,
@@ -551,7 +572,7 @@ def _attach_prices(items: list) -> None:
         item["prices"] = prices_by_item.get(item["item_code"], [])
 
 
-def _attach_variant_prices(items: list) -> None:
+def _attach_variant_prices(items: list, price_min=None, price_max=None) -> None:
     """
     Template items (has_variants = 1) carry no Item Price of their own — the
     prices live on their variant items. For every such template still lacking a
@@ -563,8 +584,10 @@ def _attach_variant_prices(items: list) -> None:
 
     Selling prices are preferred when choosing the lowest variant (that is the
     price a customer sees); otherwise the lowest of whatever prices exist is
-    used. Done in two bulk queries regardless of how many templates/variants
-    are on the page.
+    used. When a price range is given, only variants with a selling price
+    inside it are considered, so the shown price matches the price filter.
+    Done in two bulk queries regardless of how many templates/variants are on
+    the page.
     """
     if not items:
         return
@@ -579,7 +602,7 @@ def _attach_variant_prices(items: list) -> None:
 
     variants = frappe.get_all(
         "Item",
-        filters={"variant_of": ["in", template_codes]},
+        filters={"variant_of": ["in", template_codes], "disabled": 0},
         fields=["name", "variant_of", "standard_rate"],
         ignore_permissions=True,
     )
@@ -605,6 +628,8 @@ def _attach_variant_prices(items: list) -> None:
         if not template:
             continue
         prices_by_variant.setdefault(price["item_code"], []).append(price)
+        if not _is_in_price_range(price, price_min, price_max):
+            continue
         current = lowest_by_template.get(template)
         if current is None or _is_lower_price(price, current):
             lowest_by_template[template] = price
@@ -619,6 +644,20 @@ def _attach_variant_prices(items: list) -> None:
             variant_standard_rate = standard_rate_by_variant.get(best["item_code"])
             if variant_standard_rate:
                 item["standard_rate"] = variant_standard_rate
+
+
+def _is_in_price_range(price: dict, price_min=None, price_max=None) -> bool:
+    """True when no range is given, or ``price`` is a selling price inside it."""
+    if price_min is None and price_max is None:
+        return True
+    if not price.get("selling"):
+        return False
+    rate = flt(price.get("price_list_rate"))
+    if price_min is not None and rate < flt(price_min):
+        return False
+    if price_max is not None and rate > flt(price_max):
+        return False
+    return True
 
 
 def _is_lower_price(candidate: dict, current: dict) -> bool:

@@ -10,6 +10,7 @@ from true_med.utils.list_query_filters import (
     merge_doctype_field_filters,
     normalize_field_filters_json,
 )
+from true_med.utils.item_visibility import visible_item_group_sql
 from true_med.utils.pagination import MAX_PAGE_LENGTH
 
 _FIELD_NAME_OK = re.compile(r"^[A-Za-z0-9_]+$")
@@ -43,17 +44,14 @@ def _item_prefilters_for_best_selling(field_filters: str | None) -> dict:
 
 
 def _item_join_and_where(prefilters: dict) -> tuple[str, str, list]:
-    if not prefilters:
-        return "", "", []
-    parts = []
+    # Items of Item Groups hidden from the website are never listed.
+    parts = [visible_item_group_sql("i.item_group")]
     vals = []
-    for col, val in prefilters.items():
+    for col, val in (prefilters or {}).items():
         if col not in ITEM_LIST_FIELDS or not _FIELD_NAME_OK.match(col):
             continue
         parts.append(f"i.`{col}` = %s")
         vals.append(val)
-    if not parts:
-        return "", "", []
     join_sql = " INNER JOIN `tabItem` i ON i.name = sii.item_code "
     where_sql = " AND " + " AND ".join(parts)
     return join_sql, where_sql, vals

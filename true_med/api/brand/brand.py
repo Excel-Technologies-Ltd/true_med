@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 
 from true_med.utils import cache as brand_cache
+from true_med.utils.item_visibility import get_hidden_item_groups
 
 
 @frappe.whitelist(allow_guest=True)
@@ -70,5 +71,10 @@ def _get_item_count(brand: str) -> int:
     """Count active top-level items for this brand."""
     return frappe.db.count(
         "Item",
-        filters={"brand": brand, "disabled": 0, "variant_of": ["is", "not set"]},
+        filters={
+            "brand": brand,
+            "disabled": 0,
+            "variant_of": ["is", "not set"],
+            "item_group": ["not in", get_hidden_item_groups() or [""]],
+        },
     )

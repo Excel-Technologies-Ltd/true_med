@@ -134,6 +134,10 @@ doc_events = {
         "on_update": "true_med.utils.cache.on_item_price_change",
         "on_trash": "true_med.utils.cache.on_item_price_change",
     },
+    "Item Group": {
+        "on_update": "true_med.utils.cache.on_item_group_change",
+        "on_trash": "true_med.utils.cache.on_item_group_change",
+    },
     # ---- Brands ----
     "Brand": {
         "on_update": "true_med.utils.cache.on_brand_change",
